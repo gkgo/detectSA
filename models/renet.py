@@ -44,11 +44,11 @@ class RENet(nn.Module):
         layers = list()
 
         if self.args.self_method == 'scr':
-            # corr_block1 = SelfCorrelationComputation1(d_model=640, h=1)
+            corr_block1 = SelfCorrelationComputation1(d_model=640, h=1)
             # corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
             # self_block = SCR(planes=planes, stride=stride)
             # corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)
-            corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)
+#             corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)
             # corr_block2 = SelfCorrelationComputation4(channel=640)
             # corr_block2 = SelfCorrelationComputation3(in_channels=640)
             # corr_block2 = SelfCorrelationComputation2(in_channels=640, out_channels=640, kernel_size=5)
@@ -65,7 +65,7 @@ class RENet(nn.Module):
             raise NotImplementedError
 
         if self.args.self_method == 'scr':
-            layers.append(corr_block2)
+            layers.append(corr_block1)
         #     layers.append(corr_block)
         # layers.append(self_block)
         return nn.Sequential(*layers)
@@ -310,10 +310,10 @@ class RENet(nn.Module):
         if self.args.self_method:
             identity = x  # (80,640,5,5)
             x = self.scr_module(x)
-            # x = self.match_net1(x,identity)
+            x = self.match_net1(x,identity)
 
-            if self.args.self_method == 'scr':
-                x = x + identity   # 公式（2）
+#             if self.args.self_method == 'scr':
+#                 x = x + identity   # 公式（2）
             x = F.relu(x, inplace=True)
 
         if do_gap:
