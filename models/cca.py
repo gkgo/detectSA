@@ -74,7 +74,7 @@ class ChannelGate(nn.Module):
             else:
                 channel_att_sum = channel_att_sum + channel_att_raw
 
-        scale = self.relu(channel_att_sum).unsqueeze(2).unsqueeze(3)  # 50，640，1，1
+        scale = torch.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3)  # 50，640，1，1
         return scale
 
 class match_block1(nn.Module):
@@ -121,18 +121,51 @@ class match_block1(nn.Module):
         )
 
         self.ChannelGate = ChannelGate(self.in_channels)
-        self.ChannelAttention = ChannelAttention(self.in_channels)
-        self.SpatialAttention = SpatialAttention()
         self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
 
+
     def forward(self, spt, qry):
-        # c_weight = self.ChannelGate(spt)
-        # x1 = qry*c_weight + qry
-        c_weight = self.ChannelAttention(spt)
-        x = spt * c_weight
-        x0 = self.SpatialAttention(x)
-        x1 = x * x0 + qry
-        return x1
+        bs, cs, height_a, width_a = spt.shape  # 支持集
+        bq, cq, height_d, width_d = qry.shape  # 查询集
+        d_x = self.g(qry).view(bq, self.inter_channels, -1)  # 10(5,320,25)
+        d_x = d_x.permute(0, 2, 1).contiguous()  # b,h*w,c           # 10(5,25,320)
+
+        a_x = self.g(spt).view(bs, self.inter_channels, -1)
+        a_x = a_x.permute(0, 2, 1).contiguous()  # b,h*w,c           # (5,25,320)
+
+        theta_x = self.theta(spt).view(bs, self.inter_channels, -1)
+        theta_x = theta_x.permute(0, 2, 1)  # aim b,h*w,c # (5,25,320)
+
+        phi_x = self.phi(qry).view(bq, self.inter_channels, -1)  # dect b,c,h*w # 10(5,25,320)
+
+        f = torch.matmul(theta_x, phi_x)  # (10,5,25,25)
+
+        N = f.size(-1)  # (25)
+        f_div_C = f / N  # 10(5,25,25)
+
+        f = f.permute(0, 2, 1).contiguous()
+        N = f.size(-1)  # (25)
+        fi_div_C = f / N  # (5,25,25)
+
+        non_aim = torch.matmul(f_div_C, d_x)  # (10,5,25,25) (10,5,25,320) (10,5,25,320)
+        non_aim = non_aim.permute(0, 2, 1).contiguous()
+        non_aim = non_aim.view(bs, self.inter_channels, height_a, width_a)
+        non_aim = self.W(non_aim)
+        non_aim = non_aim  # (5,640,5,5) # 支持集
+
+        non_det = torch.matmul(fi_div_C, a_x)
+        non_det = non_det.permute(0, 2, 1).contiguous()
+        non_det = non_det.view(bq, self.inter_channels, height_d, width_d)
+        non_det = self.Q(non_det)
+        non_det = non_det  # (5,640,5,5)
+
+        ##################################### Response in chaneel weight ####################################################
+
+        c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
+        act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
+        act_det = non_det * c_weight  # 查询  (5,640,5,5)
+        x = (act_det + act_aim)/2 +qry
+        return x
 
 class match_block(nn.Module):
     def __init__(self, inplanes):
