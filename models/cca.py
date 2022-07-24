@@ -164,11 +164,8 @@ class match_block1(nn.Module):
         ##################################### Response in chaneel weight ####################################################
 
         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
-        s_weight =  self.SpatialAttention(non_aim)
         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
         act_det = non_det * c_weight  # 查询  (5,640,5,5)
-        act_aim = act_aim * s_weight
-        act_det = act_det * s_weight
         x = (act_det + act_aim)/2 +qry
         return x
 
@@ -227,8 +224,8 @@ class match_block(nn.Module):
         # x1 = qry*c_weight + qry
         xq = qry*c_weight1
         xs = spt*c_weight2
-        xq0 = self.SpatialAttention(spt)
-        xs0 = self.SpatialAttention(qry)
+        xq0 = self.SpatialAttention(xq)
+        xs0 = self.SpatialAttention(xs)
         x1 = xq * xq0 + qry
         x2 = xs * xs0 + spt
         return x2, x1
