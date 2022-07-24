@@ -167,8 +167,8 @@ class match_block1(nn.Module):
         s_weight =  self.SpatialAttention(non_aim)
         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
         act_det = non_det * c_weight  # 查询  (5,640,5,5)
-        act_aim = non_aim * s_weight
-        act_det = non_det * s_weight
+        act_aim = act_aim * s_weight
+        act_det = act_det * s_weight
         x = (act_det + act_aim)/2 +qry
         return x
 
