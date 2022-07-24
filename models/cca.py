@@ -121,6 +121,8 @@ class match_block1(nn.Module):
         )
 
         self.ChannelGate = ChannelGate(self.in_channels)
+        self.ChannelAttention = ChannelAttention(self.in_channels)
+        self.SpatialAttention = SpatialAttention()
         self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
 
 
@@ -162,8 +164,11 @@ class match_block1(nn.Module):
         ##################################### Response in chaneel weight ####################################################
 
         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
+        s_weight =  self.SpatialAttention(non_aim)
         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
         act_det = non_det * c_weight  # 查询  (5,640,5,5)
+        act_aim = non_aim * s_weight
+        act_det = non_det * s_weight
         x = (act_det + act_aim)/2 +qry
         return x
 
