@@ -30,6 +30,7 @@ class RENet(nn.Module):
         self.scr_module = self._make_scr_layer(planes=[640, 64, 64, 64, 640])
         self.match_net = match_block(640)
         self.match_net1 = match_block1(640)
+        self.match_net2 = match_block2(64)
         self.cca_module = CCA(kernel_sizes=[3, 3], planes=[16, 1])
         self.cca_1x1 = nn.Sequential(
             nn.Conv2d(self.encoder_dim, 64, kernel_size=1, bias=False),
