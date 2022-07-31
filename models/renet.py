@@ -30,7 +30,6 @@ class RENet(nn.Module):
         self.scr_module = self._make_scr_layer(planes=[640, 64, 64, 64, 640])
         self.match_net = match_block(640)
         self.match_net1 = match_block1(640)
-        self.match_net2 = match_block2(64)
         self.cca_module = CCA(kernel_sizes=[3, 3], planes=[16, 1])
         self.cca_1x1 = nn.Sequential(
             nn.Conv2d(self.encoder_dim, 64, kernel_size=1, bias=False),
@@ -296,11 +295,6 @@ class RENet(nn.Module):
         # num_qry * C * H_q * W_q --> num_qry * way * H_q * W_q
         spt = spt.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)  # 在0维度上复制num_qry 10，5，64，5，5
         qry = qry.unsqueeze(1).repeat(1, way, 1, 1, 1)  # 在第一维度上复制way
-        spt = spt.view(-1,64,5,5)
-        qry = qry.view(-1,64,5,5)
-        spt, qry = self.match_net2(spt, qry)
-        spt = spt.view(num_qry, way,64,5,5)
-        qry = qry.view(num_qry, way,64,5,5)
         # 使之大小都变为（75，5，64，5，5）
         similarity_map_einsum = torch.einsum('qncij,qnckl->qnijkl', spt, qry)  # （75，5，5，5，5，5）
         # 2 使用爱因斯坦求和
