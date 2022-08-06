@@ -118,12 +118,12 @@ class RENet(nn.Module):
 
         # applying attention
         spt_attended = attn_s.unsqueeze(2) * spt.unsqueeze(0)  # 10，5，640，5，5
-#         spt_attended = spt_attended.view(-1,640,H_s, W_s)
+        spt_attended = spt_attended.view(-1,640,H_s, W_s)
         qry_attended = attn_q.unsqueeze(2) * qry.unsqueeze(1)  # 10，5，640，5，5
-#         qry_attended = qry_attended.view(-1,640,H_q, W_q)
-#         spt_attended, qry_attended = self.match_net(spt_attended, qry_attended )
-#         spt_attended = spt_attended.view(num_qry, way,640,H_s, W_s)
-#         qry_attended = qry_attended.view(num_qry, way,640,H_q, W_q)
+        qry_attended = qry_attended.view(-1,640,H_q, W_q)
+        spt_attended, qry_attended = self.match_net(spt_attended, qry_attended )
+        spt_attended = spt_attended.view(num_qry, way,640,H_s, W_s)
+        qry_attended = qry_attended.view(num_qry, way,640,H_q, W_q)
 
         # averaging embeddings for k > 1 shots
         if self.args.shot > 1:
