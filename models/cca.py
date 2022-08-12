@@ -174,7 +174,7 @@ class match_block1(nn.Module):
 
         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
-        x =  act_aim + qry
+        x =  act_aim 
         return x
 
 class match_block(nn.Module):
