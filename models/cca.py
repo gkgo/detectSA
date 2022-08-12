@@ -28,8 +28,8 @@ class ChannelAttention1(nn.Module):
         max_out = self.fc2(self.relu1(self.fc1(max_pool)))
         out = avg_out + max_out
         return self.sigmoid(out)
-    
-    
+
+
 class ChannelAttention(nn.Module):
     def __init__(self, in_planes=640, ratio=10):
         super(ChannelAttention, self).__init__()
@@ -95,65 +95,7 @@ class ChannelGate(nn.Module):
 
         scale = torch.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3)  # 50，640，1，1
         return scale
-    
-    
-class match_block2(nn.Module):
-    def __init__(self, inplanes):
-        super(match_block2, self).__init__()
 
-        self.sub_sample = False
-
-        self.in_channels = inplanes
-        self.inter_channels = None
-
-        if self.inter_channels is None:
-            self.inter_channels = self.in_channels // 2
-            if self.inter_channels == 0:
-                self.inter_channels = 1
-        conv_nd = nn.Conv2d
-        max_pool_layer = nn.MaxPool2d(kernel_size=(2, 2))
-        bn = nn.BatchNorm2d
-
-        self.g = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                         kernel_size=1, stride=1, padding=0)
-
-        self.W = nn.Sequential(
-            conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
-
-        self.Q = nn.Sequential(
-            conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
-
-        self.theta = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                             kernel_size=1, stride=1, padding=0)
-        self.phi = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                           kernel_size=1, stride=1, padding=0)
-
-        self.concat_project = nn.Sequential(
-            nn.Conv2d(self.inter_channels * 2, 1, 1, 1, 0, bias=False),
-            nn.ReLU()
-        )
-
-        self.ChannelGate = ChannelGate(self.in_channels)
-        self.ChannelAttention1 = ChannelAttention1(self.in_channels)
-        self.SpatialAttention = SpatialAttention()
-        self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
-
-    def forward(self, spt, qry):
-        c_weight1 = self.ChannelAttention1(spt)
-        c_weight2 = self.ChannelAttention1(qry)
-        xq = qry*c_weight1
-        xs = spt*c_weight2
-        xq0 = self.SpatialAttention(xq)
-        xs0 = self.SpatialAttention(xs)
-        x1 = xq * xq0 + qry
-        x2 = xs * xs0 + spt
-        return x2, x1
 
 class match_block1(nn.Module):
     def __init__(self, inplanes):
@@ -170,7 +112,6 @@ class match_block1(nn.Module):
                 self.inter_channels = 1
 
         conv_nd = nn.Conv2d
-        max_pool_layer = nn.MaxPool2d(kernel_size=(2, 2))
         bn = nn.BatchNorm2d
 
         self.g = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
@@ -210,8 +151,6 @@ class match_block1(nn.Module):
         d_x = self.g(qry).view(bq, self.inter_channels, -1)  # 10(5,320,25)
         d_x = d_x.permute(0, 2, 1).contiguous()  # b,h*w,c           # 10(5,25,320)
 
-        a_x = self.g(spt).view(bs, self.inter_channels, -1)
-        a_x = a_x.permute(0, 2, 1).contiguous()  # b,h*w,c           # (5,25,320)
 
         theta_x = self.theta(spt).view(bs, self.inter_channels, -1)
         theta_x = theta_x.permute(0, 2, 1)  # aim b,h*w,c # (5,25,320)
@@ -223,9 +162,6 @@ class match_block1(nn.Module):
         N = f.size(-1)  # (25)
         f_div_C = f / N  # 10(5,25,25)
 
-        f = f.permute(0, 2, 1).contiguous()
-        N = f.size(-1)  # (25)
-        fi_div_C = f / N  # (5,25,25)
 
         non_aim = torch.matmul(f_div_C, d_x)  # (10,5,25,25) (10,5,25,320) (10,5,25,320)
         non_aim = non_aim.permute(0, 2, 1).contiguous()
@@ -233,18 +169,12 @@ class match_block1(nn.Module):
         non_aim = self.W(non_aim)
         non_aim = non_aim  # (5,640,5,5) # 支持集
 
-        non_det = torch.matmul(fi_div_C, a_x)
-        non_det = non_det.permute(0, 2, 1).contiguous()
-        non_det = non_det.view(bq, self.inter_channels, height_d, width_d)
-        non_det = self.Q(non_det)
-        non_det = non_det  # (5,640,5,5)
 
         ##################################### Response in chaneel weight ####################################################
 
         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
-        act_det = non_det * c_weight  # 查询  (5,640,5,5)
-        x = (act_det + act_aim)/2 +qry
+        x =  act_aim + qry
         return x
 
 class match_block(nn.Module):
