@@ -132,7 +132,7 @@ def parse_args(arg_mode):
     parser = argparse.ArgumentParser(description='Relational Embedding for Few-Shot Classification (ICCV 2021)')
 
     ''' about dataset '''
-    parser.add_argument('-dataset', type=str, default='cub',
+    parser.add_argument('-dataset', type=str, default='cifar_fs',
                         choices=['miniimagenet', 'cub', 'tieredimagenet', 'cifar_fs'])
     parser.add_argument('-data_dir', type=str, default='datasets', help='dir of datasets')
 
@@ -159,12 +159,12 @@ def parse_args(arg_mode):
     parser.add_argument('-self_method', type=str, default='scr')
 
     ''' about CCA '''
-    parser.add_argument('-temperature_attn', type=float, default=2.0, metavar='gamma', help='temperature for softmax in computing cross-attention')
+    parser.add_argument('-temperature_attn', type=float, default=3.0, metavar='gamma', help='temperature for softmax in computing cross-attention')
 
     ''' about env '''
     parser.add_argument('-gpu', default='0', help='the GPU ids e.g. \"0\", \"0,1\", \"0,1,2\", etc')
     parser.add_argument('-extra_dir', type=str, default='test222', help='extra dir name added to checkpoint dir')
-    parser.add_argument('-seed', type=int, default=1, help='random seed')
+    parser.add_argument('-seed', type=int, default=2, help='random seed')
     parser.add_argument('-no_wandb', action='store_true', help='not plotting learning curve on wandb',
                         default=arg_mode == 'test')  # train: enable logging / test: disable logging
     args = parser.parse_args()
