@@ -96,65 +96,6 @@ class ChannelGate(nn.Module):
         scale = torch.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3)  # 50，640，1，1
         return scale
 
-
-class match_block2(nn.Module):
-    def __init__(self, inplanes):
-        super(match_block2, self).__init__()
-
-        self.sub_sample = False
-
-        self.in_channels = inplanes
-        self.inter_channels = None
-
-        if self.inter_channels is None:
-            self.inter_channels = self.in_channels // 2
-            if self.inter_channels == 0:
-                self.inter_channels = 1
-        conv_nd = nn.Conv2d
-        max_pool_layer = nn.MaxPool2d(kernel_size=(2, 2))
-        bn = nn.BatchNorm2d
-
-        self.g = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                         kernel_size=1, stride=1, padding=0)
-
-        self.W = nn.Sequential(
-            conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
-
-        self.Q = nn.Sequential(
-            conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
-
-        self.theta = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                             kernel_size=1, stride=1, padding=0)
-        self.phi = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                           kernel_size=1, stride=1, padding=0)
-
-        self.concat_project = nn.Sequential(
-            nn.Conv2d(self.inter_channels * 2, 1, 1, 1, 0, bias=False),
-            nn.ReLU()
-        )
-
-        self.ChannelGate = ChannelGate(self.in_channels)
-        self.ChannelAttention1 = ChannelAttention1(self.in_channels)
-        self.SpatialAttention = SpatialAttention()
-        self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
-
-    def forward(self, spt, qry):
-        c_weight1 = self.ChannelAttention1(spt)
-        c_weight2 = self.ChannelAttention1(qry)
-        xq = qry*c_weight1
-        xs = spt*c_weight2
-        xq0 = self.SpatialAttention(xq)
-        xs0 = self.SpatialAttention(xs)
-        x1 = xq * xq0 + qry
-        x2 = xs * xs0 + spt
-        return x2, x1
-
 class match_block1(nn.Module):
     def __init__(self, inplanes):
         super(match_block1, self).__init__()
