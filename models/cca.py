@@ -181,12 +181,16 @@ class match_block1(nn.Module):
                     kernel_size=1, stride=1, padding=0),
             bn(self.in_channels)
         )
+        nn.init.constant_(self.W[1].weight, 0)
+        nn.init.constant_(self.W[1].bias, 0)
 
         self.Q = nn.Sequential(
             conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
                     kernel_size=1, stride=1, padding=0),
             bn(self.in_channels)
         )
+        nn.init.constant_(self.Q[1].weight, 0)
+        nn.init.constant_(self.Q[1].bias, 0)
 
         self.theta = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
                              kernel_size=1, stride=1, padding=0)
@@ -210,6 +214,8 @@ class match_block1(nn.Module):
         d_x = self.g(qry).view(bq, self.inter_channels, -1)  # 10(5,320,25)
         d_x = d_x.permute(0, 2, 1).contiguous()  # b,h*w,c           # 10(5,25,320)
 
+        a_x = self.g(spt).view(bs, self.inter_channels, -1)
+        a_x = a_x.permute(0, 2, 1).contiguous()  # b,h*w,c           # (5,25,320)
 
         theta_x = self.theta(spt).view(bs, self.inter_channels, -1)
         theta_x = theta_x.permute(0, 2, 1)  # aim b,h*w,c # (5,25,320)
@@ -221,6 +227,9 @@ class match_block1(nn.Module):
         N = f.size(-1)  # (25)
         f_div_C = f / N  # 10(5,25,25)
 
+        f = f.permute(0, 2, 1).contiguous()
+        N = f.size(-1)  # (25)
+        fi_div_C = f / N  # (5,25,25)
 
         non_aim = torch.matmul(f_div_C, d_x)  # (10,5,25,25) (10,5,25,320) (10,5,25,320)
         non_aim = non_aim.permute(0, 2, 1).contiguous()
@@ -228,12 +237,18 @@ class match_block1(nn.Module):
         non_aim = self.W(non_aim)
         non_aim = non_aim  # (5,640,5,5) # 支持集
 
+        non_det = torch.matmul(fi_div_C, a_x)
+        non_det = non_det.permute(0, 2, 1).contiguous()
+        non_det = non_det.view(bq, self.inter_channels, height_d, width_d)
+        non_det = self.Q(non_det)
+        non_det = non_det  # (5,640,5,5)
 
         ##################################### Response in chaneel weight ####################################################
 
         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
-        x =  act_aim + qry
+        act_det = non_det * c_weight  # 查询  (5,640,5,5)
+        x = (act_det + act_aim)/2 +qry
         return x
 
 class match_block(nn.Module):
