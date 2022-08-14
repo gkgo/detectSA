@@ -228,10 +228,10 @@ class match_block(nn.Module):
         self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
 
     def forward(self, spt, qry):
-        c_weight1 = self.ChannelAttention(spt)
-        c_weight2 = self.ChannelAttention(qry)
-        # c_weight = self.ChannelGate(spt)
-        # x1 = qry*c_weight + qry
+#         c_weight1 = self.ChannelAttention(spt)
+#         c_weight2 = self.ChannelAttention(qry)
+        c_weight1 = self.ChannelGate(spt)
+        c_weight2 = self.ChannelGate(qry)
         xq = qry*c_weight1
         xs = spt*c_weight2
         xq0 = self.SpatialAttention(xq)
