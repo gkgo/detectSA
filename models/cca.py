@@ -172,10 +172,11 @@ class match_block1(nn.Module):
 
         ##################################### Response in chaneel weight ####################################################
 
-        c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
-#         c_weight = self.ChannelAttention(non_aim)  # (5,640,1,1)
-        act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
-        x =  act_aim + qry
+#         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
+#         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
+#         x =  act_aim + qry
+        x =  non_aim + qry
+
         return x
 
 
