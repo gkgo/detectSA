@@ -12,7 +12,7 @@ class Flatten(nn.Module):
 
 
 class ChannelAttention(nn.Module):
-    def __init__(self, in_planes=640, ratio=16):
+    def __init__(self, in_planes=640, ratio=10):
         super(ChannelAttention, self).__init__()
         # 利用1x1卷积代替全连接
         self.fc1 = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
@@ -30,7 +30,7 @@ class ChannelAttention(nn.Module):
         out = avg_out + max_out
         return self.sigmoid(out)
 class SpatialAttention(nn.Module):
-    def __init__(self, kernel_size=3):
+    def __init__(self, kernel_size=7):
         super(SpatialAttention, self).__init__()
 
         assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
