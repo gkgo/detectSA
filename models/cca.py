@@ -12,7 +12,7 @@ class Flatten(nn.Module):
 
 
 class ChannelAttention(nn.Module):
-    def __init__(self, in_planes=640, ratio=10):
+    def __init__(self, in_planes=640, ratio=16):
         super(ChannelAttention, self).__init__()
         # 利用1x1卷积代替全连接
         self.fc1 = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
