@@ -47,7 +47,7 @@ class SpatialAttention(nn.Module):
 
 
 class ChannelGate(nn.Module):
-    def __init__(self, gate_channels, reduction_ratio=4, pool_types=['avg', 'max']):
+    def __init__(self, gate_channels, reduction_ratio=10, pool_types=['avg', 'max']):
         super(ChannelGate, self).__init__()
         self.gate_channels = gate_channels
         self.mlp = nn.Sequential(
