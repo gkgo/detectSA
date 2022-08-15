@@ -10,25 +10,6 @@ class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
 
-class ChannelAttention1(nn.Module):
-    def __init__(self, in_planes=64, ratio=4):
-        super(ChannelAttention1, self).__init__()
-        # 利用1x1卷积代替全连接
-        self.fc1 = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
-        self.relu1 = nn.ReLU()
-        self.fc2 = nn.Conv2d(in_planes // ratio, in_planes, 1, bias=False)
-
-        self.sigmoid = nn.Sigmoid()
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        avg_pool = F.avg_pool2d(x, (x.size(2), x.size(3)), stride=(x.size(2), x.size(3)))
-        avg_out = self.fc2(self.relu1(self.fc1(avg_pool)))
-        max_pool = F.max_pool2d(x, (x.size(2), x.size(3)), stride=(x.size(2), x.size(3)))
-        max_out = self.fc2(self.relu1(self.fc1(max_pool)))
-        out = avg_out + max_out
-        return self.sigmoid(out)
-
 
 class ChannelAttention(nn.Module):
     def __init__(self, in_planes=640, ratio=10):
@@ -66,7 +47,7 @@ class SpatialAttention(nn.Module):
 
 
 class ChannelGate(nn.Module):
-    def __init__(self, gate_channels, reduction_ratio=10, pool_types=['avg', 'max']):
+    def __init__(self, gate_channels, reduction_ratio=16, pool_types=['avg', 'max']):
         super(ChannelGate, self).__init__()
         self.gate_channels = gate_channels
         self.mlp = nn.Sequential(
@@ -172,11 +153,10 @@ class match_block1(nn.Module):
 
         ##################################### Response in chaneel weight ####################################################
 
-#         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
-#         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
-#         x =  act_aim + qry
-        x =  non_aim + qry
-
+        c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
+        act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
+        x =  act_aim + qry
+        
         return x
 
 
