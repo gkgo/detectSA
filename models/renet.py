@@ -44,9 +44,9 @@ class RENet(nn.Module):
         layers = list()
 
         if self.args.self_method == 'scr':
-            corr_block1 = SelfCorrelationComputation1(d_model=640, h=1)
-            # corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
-            # self_block = SCR(planes=planes, stride=stride)
+#             corr_block1 = SelfCorrelationComputation1(d_model=640, h=1)
+            corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+            self_block = SCR(planes=planes, stride=stride)
             # corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)
 #             corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)
             # corr_block2 = SelfCorrelationComputation4(channel=640)
@@ -65,9 +65,9 @@ class RENet(nn.Module):
             raise NotImplementedError
 
         if self.args.self_method == 'scr':
-            layers.append(corr_block1)
-        #     layers.append(corr_block)
-        # layers.append(self_block)
+#             layers.append(corr_block1)
+            layers.append(corr_block)
+        layers.append(self_block)
         return nn.Sequential(*layers)
 
     def forward(self, input):
@@ -98,7 +98,7 @@ class RENet(nn.Module):
         num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
 
         # corr4d refinement
-        # corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
+        corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
         corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)  # 10，5，25，5，5
         corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)  # 10，5，5，5，25
 
