@@ -132,14 +132,14 @@ def parse_args(arg_mode):
     parser = argparse.ArgumentParser(description='Relational Embedding for Few-Shot Classification (ICCV 2021)')
 
     ''' about dataset '''
-    parser.add_argument('-dataset', type=str, default='cifar_fs',
+    parser.add_argument('-dataset', type=str, default='cub',
                         choices=['miniimagenet', 'cub', 'tieredimagenet', 'cifar_fs'])
     parser.add_argument('-data_dir', type=str, default='datasets', help='dir of datasets')
 
     ''' about training specs '''
     parser.add_argument('-batch', type=int, default=128, help='auxiliary batch size')
     parser.add_argument('-temperature', type=float, default=0.20, metavar='tau', help='temperature for metric-based loss')
-    parser.add_argument('-lamb', type=float, default=0.75, metavar='lambda', help='loss balancing term')
+    parser.add_argument('-lamb', type=float, default=1.50, metavar='lambda', help='loss balancing term')
 
     ''' about training schedules '''
     parser.add_argument('-max_epoch', type=int, default=80, help='max epoch to run')
@@ -159,7 +159,7 @@ def parse_args(arg_mode):
     parser.add_argument('-self_method', type=str, default='scr')
 
     ''' about CCA '''
-    parser.add_argument('-temperature_attn', type=float, default=5.0, metavar='gamma', help='temperature for softmax in computing cross-attention')
+    parser.add_argument('-temperature_attn', type=float, default=2.0, metavar='gamma', help='temperature for softmax in computing cross-attention')
 
     ''' about env '''
     parser.add_argument('-gpu', default='0', help='the GPU ids e.g. \"0\", \"0,1\", \"0,1,2\", etc')
