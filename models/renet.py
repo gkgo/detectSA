@@ -98,7 +98,7 @@ class RENet(nn.Module):
         num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
 
         # corr4d refinement
-        corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
+#         corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
         corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)  # 10，5，25，5，5
         corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)  # 10，5，5，5，25
 
@@ -309,10 +309,10 @@ class RENet(nn.Module):
         if self.args.self_method:
             identity = x  # (80,640,5,5)
             x = self.scr_module(x)
-            x = self.match_net1(x,identity)
+#             x = self.match_net1(x,identity)
 
-            # if self.args.self_method == 'scr':
-            #     x = x + identity   # 公式（2）
+            if self.args.self_method == 'scr':
+                x = x + identity   # 公式（2）
             x = F.relu(x, inplace=True)
 
         if do_gap:
