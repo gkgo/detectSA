@@ -22,7 +22,7 @@ def train(epoch, model, loader, optimizer, args=None):
 
     # label for query set, always in the same pattern
     label = torch.arange(args.way).repeat(args.query).cuda()  # 012340123401234...
-#     label = label1.flip(dims=[0])
+    label = label1.flip(dims=[0])
 
     loss_meter = Meter()
     acc_meter = Meter()
