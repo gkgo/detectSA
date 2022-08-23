@@ -9,6 +9,32 @@ import torch.nn.functional as F
 class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), -1)
+class ChannelAttention1(nn.Module):  # se
+    def __init__(self, channel, reduction=16):
+        super(ChannelAttention1, self).__init__()
+        hdim = 64
+        self.conv1x1_in = nn.Sequential(nn.Conv2d(channel, hdim, kernel_size=1, bias=False, padding=0),
+                                        nn.BatchNorm2d(hdim),
+                                        nn.ReLU(inplace=False))
+        self.conv1x1_out = nn.Sequential(nn.Conv2d(hdim, channel, kernel_size=1, bias=False, padding=0),
+                                        nn.BatchNorm2d(channel),
+                                        nn.ReLU(inplace=False))
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(hdim, hdim // reduction, bias=False),
+            nn.ReLU(inplace=False),
+            nn.Linear(hdim // reduction, hdim, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.conv1x1_in(x)
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        x = y.expand_as(x)
+        x = self.conv1x1_out(x)
+        return x
 
 
 class ChannelAttention(nn.Module):
@@ -103,7 +129,6 @@ class match_block1(nn.Module):
                     kernel_size=1, stride=1, padding=0),
             bn(self.in_channels)
         )
-
         self.Q = nn.Sequential(
             conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
                     kernel_size=1, stride=1, padding=0),
@@ -148,7 +173,7 @@ class match_block1(nn.Module):
         non_aim = non_aim.permute(0, 2, 1).contiguous()
         non_aim = non_aim.view(bs, self.inter_channels, height_a, width_a)
         non_aim = self.W(non_aim)
-        non_aim = non_aim  # (5,640,5,5) # 支持集
+        # non_aim = non_aim  # (5,640,5,5) # 支持集
 
 
         ##################################### Response in chaneel weight ####################################################
@@ -156,71 +181,77 @@ class match_block1(nn.Module):
         c_weight = self.ChannelGate(non_aim)  # (5,640,1,1)
         act_aim = non_aim * c_weight  # 支持  (5,640,5,5)
         x =  act_aim + qry
-        
         return x
 
 
 class match_block(nn.Module):
     def __init__(self, inplanes):
         super(match_block, self).__init__()
-
-        self.sub_sample = False
-
         self.in_channels = inplanes
         self.inter_channels = None
-
-        if self.inter_channels is None:
-            self.inter_channels = self.in_channels // 2
-            if self.inter_channels == 0:
-                self.inter_channels = 1
-
-        conv_nd = nn.Conv2d
-        max_pool_layer = nn.MaxPool2d(kernel_size=(2, 2))
-        bn = nn.BatchNorm2d
-
-        self.g = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                         kernel_size=1, stride=1, padding=0)
-
-        self.W = nn.Sequential(
-            conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
-
-        self.Q = nn.Sequential(
-            conv_nd(in_channels=self.inter_channels, out_channels=self.in_channels,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
-
-        self.theta = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                             kernel_size=1, stride=1, padding=0)
-        self.phi = conv_nd(in_channels=self.in_channels, out_channels=self.inter_channels,
-                           kernel_size=1, stride=1, padding=0)
-
-        self.concat_project = nn.Sequential(
-            nn.Conv2d(self.inter_channels * 2, 1, 1, 1, 0, bias=False),
-            nn.ReLU()
-        )
-
-        self.ChannelGate = ChannelGate(self.in_channels)
+        self.ChannelAttention1 = ChannelAttention1(self.in_channels)
         self.ChannelAttention = ChannelAttention(self.in_channels)
         self.SpatialAttention = SpatialAttention()
-        self.globalAvgPool = nn.AdaptiveAvgPool2d(1)
-
     def forward(self, spt, qry):
+
+        way = spt.shape[0]
+        num_qry = qry.shape[0]
+        spt = F.normalize(spt, p=2, dim=1, eps=1e-8)
+        qry = F.normalize(qry, p=2, dim=1, eps=1e-8)
+        # num_way * C * H_p * W_p --> num_qry * way * H_p * W_p
+        # num_qry * C * H_q * W_q --> num_qry * way * H_q * W_q
+        spt = spt.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)  # 在0维度上复制num_qry 10，5，64，5，5
+        spt = spt.view(-1, 640, 5, 5)
+        qry = qry.unsqueeze(1).repeat(1, way, 1, 1, 1)  # 在第一维度上复制way
+        qry = qry.view(-1, 640, 5, 5)
+
         c_weight1 = self.ChannelAttention(spt)
         c_weight2 = self.ChannelAttention(qry)
-#         c_weight1 = self.ChannelGate(spt)
-#         c_weight2 = self.ChannelGate(qry)
-        xq = qry*c_weight1
-        xs = spt*c_weight2
+        xq = qry * c_weight1
+        xs = spt * c_weight2
         xq0 = self.SpatialAttention(xq)
         xs0 = self.SpatialAttention(xs)
         x1 = xq * xq0 + qry
         x2 = xs * xs0 + spt
         return x2, x1
-
+# class match_block(nn.Module):
+#     def __init__(self, in_channels=640, out_channels=640, rate=10):
+#         super(match_block, self).__init__()
+#
+#         self.channel_attention = nn.Sequential(
+#             nn.Linear(in_channels, int(in_channels / rate)),
+#             nn.ReLU(inplace=True),
+#             nn.Linear(int(in_channels / rate), in_channels)
+#         )
+#
+#         self.spatial_attention = nn.Sequential(
+#             nn.Conv2d(in_channels, int(in_channels / rate), kernel_size=3, padding=1),
+#             nn.BatchNorm2d(int(in_channels / rate)),
+#             nn.ReLU(inplace=True),
+#             nn.Conv2d(int(in_channels / rate), out_channels, kernel_size=3, padding=1),
+#             nn.BatchNorm2d(out_channels)
+#         )
+#
+#     def forward(self, x,y):
+#         b, c, h, w = x.shape
+#         x_permute = x.permute(0, 2, 3, 1).view(b, -1, c)  # 15 25 640
+#         x_att_permute = self.channel_attention(x_permute).view(b, h, w, c)  # 15 5 5 640
+#         x_channel_att = x_att_permute.permute(0, 3, 1, 2)   # 15，640，5，5
+#
+#         y_permute = y.permute(0, 2, 3, 1).view(b, -1, c)  # 15 25 640
+#         y_att_permute = self.channel_attention(y_permute).view(b, h, w, c)  # 15 5 5 640
+#         y_channel_att = y_att_permute.permute(0, 3, 1, 2)   # 15，640，5，5
+#
+#         x = x * x_channel_att  # 15，640，5，5
+#         xs = x*y_channel_att
+#         yq = y*x_channel_att
+#
+#         x_spatial_att = self.spatial_attention(xs).sigmoid()
+#         y_spatial_att = self.spatial_attention(yq).sigmoid()
+#         out1 = xs * x_spatial_att + x
+#         out2 = yq * y_spatial_att + y
+#
+#         return out1,out2
 class CCA(torch.nn.Module):
     def __init__(self, kernel_sizes=[3, 3], planes=[16, 1]):
         super(CCA, self).__init__()
