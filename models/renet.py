@@ -45,13 +45,13 @@ class RENet(nn.Module):
 
         if self.args.self_method == 'scr':
             # corr_block2 = SelfCorrelationComputation1(d_model=640, h=1) #self
-            # corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
-            # self_block = SCR(planes=planes, stride=stride)
+            corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+            self_block = SCR(planes=planes, stride=stride)
             # corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
             # corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)  # local
             # corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)   # gam
             # corr_block2 = SelfCorrelationComputation8(channels=640)  # nam
-            corr_block2 = SelfCorrelationComputation4(channel=640)  # se
+#             corr_block2 = SelfCorrelationComputation4(channel=640)  # se
             # corr_block2 = SelfCorrelationComputation12(channel=640) # cbam
             # corr_block2 = SelfCorrelationComputation3(in_channels=640) # nonl
 #             corr_block2 = SelfCorrelationComputation13(channel=640)   # eca
@@ -124,34 +124,38 @@ class RENet(nn.Module):
         corr4d_q = F.softmax(corr4d_q / self.args.temperature_attn, dim=3)
         corr4d_q = corr4d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
 
-        spt_attended = corr4d_s * spt.unsqueeze(0)  # 10，5，640，5，5
+        spt_attended_c = corr4d_s * spt.unsqueeze(0)  # 10，5，640，5，5
         # spt_attended = spt_attended.view(-1,640,H_s, W_s)
-        qry_attended = corr4d_q * qry.unsqueeze(1)  # 10，5，640，5，5
+        qry_attended_c = corr4d_q * qry.unsqueeze(1)  # 10，5，640，5，5
 #——————————————————————————————————————————————————————————————————————————————————————————————
-
-        # corr4d = self.get_4d_correlation_map(spt, qry)  # 10，5，5，5，5，5
-        # num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
-        #
-        # # corr4d refinement
-        # # corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
-        # corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)  # 10，5，25，5，5
-        # corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)  # 10，5，5，5，25
-        #
-        # # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
-        # corr4d_s = self.gaussian_normalize(corr4d_s, dim=2)
-        # corr4d_q = self.gaussian_normalize(corr4d_q, dim=4)
-        #
-        # # applying softmax for each side
-        # corr4d_s = F.softmax(corr4d_s / self.args.temperature_attn, dim=2)
-        # corr4d_s = corr4d_s.view(num_qry, way, H_s, W_s, H_q, W_q)  # 10，5，5，5，5，5
-        # corr4d_q = F.softmax(corr4d_q / self.args.temperature_attn, dim=4)
-        # corr4d_q = corr4d_q.view(num_qry, way, H_s, W_s, H_q, W_q)  # 10，5，5，5，5，5
-        #
-        # # suming up matching scores
-        # attn_s = corr4d_s.sum(dim=[4, 5])  # 10，5，5，5
-        # attn_q = corr4d_q.sum(dim=[2, 3])  # 10，5，5，5
+        corr4d = self.get_4d_correlation_map(spt, qry)  # 10，5，5，5，5，5
+        num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
+        
+        corr4d = self.get_4d_correlation_map(spt, qry)  # 10，5，5，5，5，5
+        num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
+        
+        # corr4d refinement
+        corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
+        corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)  # 10，5，25，5，5
+        corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)  # 10，5，5，5，25
+        
+        # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
+        corr4d_s = self.gaussian_normalize(corr4d_s, dim=2)
+        corr4d_q = self.gaussian_normalize(corr4d_q, dim=4)
+        
+        # applying softmax for each side
+        corr4d_s = F.softmax(corr4d_s / self.args.temperature_attn, dim=2)
+        corr4d_s = corr4d_s.view(num_qry, way, H_s, W_s, H_q, W_q)  # 10，5，5，5，5，5
+        corr4d_q = F.softmax(corr4d_q / self.args.temperature_attn, dim=4)
+        corr4d_q = corr4d_q.view(num_qry, way, H_s, W_s, H_q, W_q)  # 10，5，5，5，5，5
+        
+        # suming up matching scores
+        attn_s = corr4d_s.sum(dim=[4, 5])  # 10，5，5，5
+        attn_q = corr4d_q.sum(dim=[2, 3])  # 10，5，5，5
         #
         # # applying attention
+        spt_attended = attn_s.unsqueeze(2) * spt_attended_c  # 10，5，640，5，5
+        qry_attended = attn_q.unsqueeze(2) * qry_attended_c  # 10，5，640，5，5
         # spt_attended = attn_s.unsqueeze(2) * spt.unsqueeze(0)  # 10，5，640，5，5
         # qry_attended = attn_q.unsqueeze(2) * qry.unsqueeze(1)  # 10，5，640，5，5
         #
@@ -229,7 +233,7 @@ class RENet(nn.Module):
         if self.args.self_method:
             identity = x  # (80,640,5,5)
             x = self.scr_module(x)
-            # x = self.match_net1(x,identity)
+            x = self.match_net1(x,x)
 
             if self.args.self_method == 'scr':
                 x = x + identity   # 公式（2）
