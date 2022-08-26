@@ -59,20 +59,6 @@ class SelfCorrelationComputation(nn.Module):
         self.kernel_size = kernel_size
         self.unfold = nn.Unfold(kernel_size=kernel_size, padding=padding)
         self.relu = nn.ReLU(inplace=True)
-        conv_nd = nn.Conv2d
-        bn = nn.BatchNorm2d
-        self.in_channels = 640
-        self.g = conv_nd(in_channels=640, out_channels=320,
-                         kernel_size=1, stride=1, padding=0)
-        self.theta = conv_nd(in_channels=640, out_channels=320,
-                             kernel_size=1, stride=1, padding=0)
-        self.phi = conv_nd(in_channels=640, out_channels=320,
-                           kernel_size=1, stride=1, padding=0)
-        self.Q = nn.Sequential(
-            conv_nd(in_channels=320, out_channels=640,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -81,27 +67,10 @@ class SelfCorrelationComputation(nn.Module):
         x = F.normalize(x, dim=1, p=2)
         identity = x
 
-        x1 = self.g(identity).view(b, 320, -1)
-        x1 = x1.permute(0, 2, 1)
-        theta_x = self.theta(x).view(b,320, -1)
-        theta_x = theta_x.permute(0, 2, 1)
-        phi_x = self.phi(x).view(b, 320, -1)
-        f = torch.matmul(theta_x, phi_x)
-        f_div_C = F.softmax(f, dim=-1)
-        y = torch.matmul(f_div_C, x1)
-        y = y.permute(0,2,1).contiguous()
-
-        y = y.view(b, 320, h, w)
-        y = self.Q(y)
-        identity = identity + y
-
-        x = self.unfold(x)  # 提取出滑动的局部区域块，这里滑动窗口大小为5*5，步长为1
-        # b, cuv, h, w  （80,640*5*5,5,5)
-        x = x.view(b, c, self.kernel_size[0], self.kernel_size[1], h, w)  # b, c, u, v, h, w
-        x = x * identity.unsqueeze(2).unsqueeze(2)  # 通过unsqueeze增维使identity和x变为同维度  公式（1）
-        # b, c, u, v, h, w * b, c, 1, 1, h, w
+        x = self.unfold(x)  # b, cuv, h, w
+        x = x.view(b, c, self.kernel_size[0], self.kernel_size[1], h, w)
+        x = x * identity.unsqueeze(2).unsqueeze(2)  # b, c, u, v, h, w * b, c, 1, 1, h, w
         x = x.permute(0, 1, 4, 5, 2, 3).contiguous()  # b, c, h, w, u, v
-        # torch.contiguous()方法首先拷贝了一份张量在内存中的地址，然后将地址按照形状改变后的张量的语义进行排列
         return x
 
 class SelfCorrelationComputation1(nn.Module):
