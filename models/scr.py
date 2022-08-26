@@ -20,7 +20,6 @@ import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 import warnings
-from timm.models.layers import trunc_normal_, DropPath
 
 class SpatialAttention(nn.Module):
     def __init__(self, kernel_size=3):
