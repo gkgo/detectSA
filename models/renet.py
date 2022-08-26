@@ -131,7 +131,6 @@ class RENet(nn.Module):
         num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
 
         # corr4d refinement
-        corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
         corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)  # 10，5，25，5，5
         corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)  # 10，5，5，5，25
 
