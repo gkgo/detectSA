@@ -19,7 +19,7 @@ def setup_run(arg_mode='train'):
     ensure_path(args.save_path)
 
     if not args.no_wandb:
-        wandb.init(project=f'renet-{args.dataset}-{args.way}w{args.shot}s',
+        wandb.init(project=f'renet gai-{args.dataset}-{args.way}w{args.shot}s',
                    config=args,
                    save_code=True,
                    name=args.extra_dir)
@@ -145,12 +145,12 @@ def parse_args(arg_mode):
     parser.add_argument('-max_epoch', type=int, default=80, help='max epoch to run')
     parser.add_argument('-lr', type=float, default=0.1, help='learning rate')
     parser.add_argument('-gamma', type=float, default=0.05, help='learning rate decay factor')
-    parser.add_argument('-milestones', nargs='+', type=int, default=[ 60, 70], help='milestones for MultiStepLR')
+    parser.add_argument('-milestones', nargs='+', type=int, default=[60,70], help='milestones for MultiStepLR')
     parser.add_argument('-save_all', action='store_true', help='save models on each epoch')
 
     ''' about few-shot episodes '''
     parser.add_argument('-way', type=int, default=5, metavar='N', help='number of few-shot classes')
-    parser.add_argument('-shot', type=int, default=5, metavar='K', help='number of shots')
+    parser.add_argument('-shot', type=int, default=1, metavar='K', help='number of shots')
     parser.add_argument('-query', type=int, default=15, help='number of query image per class')
     parser.add_argument('-val_episode', type=int, default=200, help='number of validation episode')
     parser.add_argument('-test_episode', type=int, default=2000, help='number of testing episodes after training')
@@ -163,7 +163,7 @@ def parse_args(arg_mode):
 
     ''' about env '''
     parser.add_argument('-gpu', default='0', help='the GPU ids e.g. \"0\", \"0,1\", \"0,1,2\", etc')
-    parser.add_argument('-extra_dir', type=str, default='test222', help='extra dir name added to checkpoint dir')
+    parser.add_argument('-extra_dir', type=str, default='5w', help='extra dir name added to checkpoint dir')
     parser.add_argument('-seed', type=int, default=2, help='random seed')
     parser.add_argument('-no_wandb', action='store_true', help='not plotting learning curve on wandb',
                         default=arg_mode == 'test')  # train: enable logging / test: disable logging
