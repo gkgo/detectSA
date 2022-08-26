@@ -101,7 +101,7 @@ class RENet(nn.Module):
         # corr4d = self.get_4d_correlation_map(spt, qry)  # 10，5，5，5，5，5
         # num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
 #_____________________________________________________________________________________
-          way = spt.shape[0]
+        way = spt.shape[0]
         num_qry = qry.shape[0]
         H_s, W_s, H_q, W_q = 5,5,5,5
         spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
@@ -131,7 +131,7 @@ class RENet(nn.Module):
         num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
 
         # corr4d refinement
-        # corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
+        corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
         corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)  # 10，5，25，5，5
         corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)  # 10，5，5，5，25
 
