@@ -173,7 +173,6 @@ class match_block1(nn.Module):
         non_aim = non_aim.permute(0, 2, 1).contiguous()
         non_aim = non_aim.view(bs, self.inter_channels, height_a, width_a)
         non_aim = self.W(non_aim)
-        # non_aim = non_aim  # (5,640,5,5) # 支持集
 
 
         ##################################### Response in chaneel weight ####################################################
@@ -198,13 +197,12 @@ class match_block(nn.Module):
         num_qry = qry.shape[0]
         spt = F.normalize(spt, p=2, dim=1, eps=1e-8)
         qry = F.normalize(qry, p=2, dim=1, eps=1e-8)
-        # num_way * C * H_p * W_p --> num_qry * way * H_p * W_p
-        # num_qry * C * H_q * W_q --> num_qry * way * H_q * W_q
-        spt = spt.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)  # 在0维度上复制num_qry 10，5，64，5，5
-        spt = spt.view(-1, 640, 5, 5)
-        qry = qry.unsqueeze(1).repeat(1, way, 1, 1, 1)  # 在第一维度上复制way
-        qry = qry.view(-1, 640, 5, 5)
-
+        # way , C , H_s , W_s --> num_qry * way, C , H_s , W_s
+        # num_qry , C , H_q , W_q --> num_qry * way,C ,H_q , W_q
+        spt = spt.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)
+        spt = spt.view(-1, 640, 5, 5) # num_qry * way, C , H_s , W_s
+        qry = qry.unsqueeze(1).repeat(1, way, 1, 1, 1)
+        qry = qry.view(-1, 640, 5, 5) # num_qry * way,C ,H_q , W_q
         c_weight1 = self.ChannelAttention(spt)
         c_weight2 = self.ChannelAttention(qry)
         xq = qry * c_weight1
@@ -214,44 +212,7 @@ class match_block(nn.Module):
         x1 = xq * xq0 + qry
         x2 = xs * xs0 + spt
         return x2, x1
-# class match_block(nn.Module):
-#     def __init__(self, in_channels=640, out_channels=640, rate=10):
-#         super(match_block, self).__init__()
-#
-#         self.channel_attention = nn.Sequential(
-#             nn.Linear(in_channels, int(in_channels / rate)),
-#             nn.ReLU(inplace=True),
-#             nn.Linear(int(in_channels / rate), in_channels)
-#         )
-#
-#         self.spatial_attention = nn.Sequential(
-#             nn.Conv2d(in_channels, int(in_channels / rate), kernel_size=3, padding=1),
-#             nn.BatchNorm2d(int(in_channels / rate)),
-#             nn.ReLU(inplace=True),
-#             nn.Conv2d(int(in_channels / rate), out_channels, kernel_size=3, padding=1),
-#             nn.BatchNorm2d(out_channels)
-#         )
-#
-#     def forward(self, x,y):
-#         b, c, h, w = x.shape
-#         x_permute = x.permute(0, 2, 3, 1).view(b, -1, c)  # 15 25 640
-#         x_att_permute = self.channel_attention(x_permute).view(b, h, w, c)  # 15 5 5 640
-#         x_channel_att = x_att_permute.permute(0, 3, 1, 2)   # 15，640，5，5
-#
-#         y_permute = y.permute(0, 2, 3, 1).view(b, -1, c)  # 15 25 640
-#         y_att_permute = self.channel_attention(y_permute).view(b, h, w, c)  # 15 5 5 640
-#         y_channel_att = y_att_permute.permute(0, 3, 1, 2)   # 15，640，5，5
-#
-#         x = x * x_channel_att  # 15，640，5，5
-#         xs = x*y_channel_att
-#         yq = y*x_channel_att
-#
-#         x_spatial_att = self.spatial_attention(xs).sigmoid()
-#         y_spatial_att = self.spatial_attention(yq).sigmoid()
-#         out1 = xs * x_spatial_att + x
-#         out2 = yq * y_spatial_att + y
-#
-#         return out1,out2
+
 class CCA(torch.nn.Module):
     def __init__(self, kernel_sizes=[3, 3], planes=[16, 1]):
         super(CCA, self).__init__()
