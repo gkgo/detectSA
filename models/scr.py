@@ -106,7 +106,6 @@ class SelfCorrelationComputation(nn.Module):
                     kernel_size=1, stride=1, padding=0),
             bn(self.in_channels)
         )
-        self.ChannelGate = ChannelGate(640)
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -127,8 +126,6 @@ class SelfCorrelationComputation(nn.Module):
 
         y = y.view(b, 320, h, w)
         y = self.Q(y)
-        c_weight = self.ChannelGate(y)  # (5,640,1,1)
-        y = y * c_weight  # 支持  (5,640,5,5)
         identity = identity + y
 
         x = self.unfold(x)  # 提取出滑动的局部区域块，这里滑动窗口大小为5*5，步长为1
