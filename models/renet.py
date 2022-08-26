@@ -233,7 +233,7 @@ class RENet(nn.Module):
         if self.args.self_method:
             identity = x  # (80,640,5,5)
             x = self.scr_module(x)
-            x = self.match_net1(x,identity)
+#             x = self.match_net1(x,identity)
 
             if self.args.self_method == 'scr':
                 x = x + identity   # 公式（2）
