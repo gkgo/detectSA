@@ -21,8 +21,8 @@ def train(epoch, model, loader, optimizer, args=None):
     train_loader_aux = loader['train_loader_aux']
 
     # label for query set, always in the same pattern
-    label1 = torch.arange(args.way).repeat(args.query).cuda()  # 012340123401234...
-    label = label1.flip(dims=[0])
+    label = torch.arange(args.way).repeat(args.query).flip(dims=[0]).cuda()  # 432104321043210....
+
 
     loss_meter = Meter()
     acc_meter = Meter()
@@ -74,7 +74,7 @@ def train_main(args):
     Dataset = dataset_builder(args)
 
     trainset = Dataset('train', args)
-    train_sampler = CategoriesSampler(trainset.label, len(trainset.data) // args.batch, args.way, args.shot + args.query)
+    train_sampler = CategoriesSampler(trainset.label, len(trainset.data) // args.batch, args.way,args.shot,args.shot + args.query)
     train_loader = DataLoader(dataset=trainset, batch_sampler=train_sampler, num_workers=4, pin_memory=True)
 
     trainset_aux = Dataset('train', args)
@@ -83,7 +83,7 @@ def train_main(args):
     train_loaders = {'train_loader': train_loader, 'train_loader_aux': train_loader_aux}
 
     valset = Dataset('val', args)
-    val_sampler = CategoriesSampler(valset.label, args.val_episode, args.way, args.shot + args.query)
+    val_sampler = CategoriesSampler(valset.label, args.val_episode, args.way,args.shot,args.shot + args.query)
     val_loader = DataLoader(dataset=valset, batch_sampler=val_sampler, num_workers=4, pin_memory=True)
     ''' fix val set for all epochs '''
     val_loader = [x for x in val_loader]
