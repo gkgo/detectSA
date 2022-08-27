@@ -4,9 +4,10 @@ import numpy as np
 
 class CategoriesSampler():
 
-    def __init__(self, label, n_batch, n_cls, n_per):
+    def __init__(self, label, n_batch, n_cls,shot,n_per):
         self.n_batch = n_batch  # the number of iterations in the dataloader
         self.n_cls = n_cls
+        self.n_shot = shot * n_cls
         self.n_per = n_per
 
         label = np.array(label)  # all data label
@@ -28,8 +29,8 @@ class CategoriesSampler():
                 pos = torch.randperm(len(l))[:self.n_per]  # sample n_per data index of this class
                 batch.append(l[pos])
             batch = torch.stack(batch).t().reshape(-1)
-            batch1 = batch[0:5]
-            batch2 = batch[5:]
+            batch1 = batch[0:self.n_shot]
+            batch2 = batch[self.n_shot:]
             x = batch2.flip(dims=[0])
             batch = torch.cat((batch1,x), dim=0)
             # .t() transpose,
