@@ -139,7 +139,7 @@ def parse_args(arg_mode):
     ''' about training specs '''
     parser.add_argument('-batch', type=int, default=64, help='auxiliary batch size')
     parser.add_argument('-temperature', type=float, default=0.20, metavar='tau', help='temperature for metric-based loss')
-    parser.add_argument('-lamb', type=float, default=2.00, metavar='lambda', help='loss balancing term')
+    parser.add_argument('-lamb', type=float, default=1.75, metavar='lambda', help='loss balancing term')
 
     ''' about training schedules '''
     parser.add_argument('-max_epoch', type=int, default=80, help='max epoch to run')
@@ -164,7 +164,7 @@ def parse_args(arg_mode):
     ''' about env '''
     parser.add_argument('-gpu', default='0', help='the GPU ids e.g. \"0\", \"0,1\", \"0,1,2\", etc')
     parser.add_argument('-extra_dir', type=str, default='5w', help='extra dir name added to checkpoint dir')
-    parser.add_argument('-seed', type=int, default=1, help='random seed')
+    parser.add_argument('-seed', type=int, default=2, help='random seed')
     parser.add_argument('-no_wandb', action='store_true', help='not plotting learning curve on wandb',
                         default=arg_mode == 'test')  # train: enable logging / test: disable logging
     args = parser.parse_args()
