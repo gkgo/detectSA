@@ -19,8 +19,7 @@ def evaluate(epoch, model, loader, args=None, set='val'):
     loss_meter = Meter()
     acc_meter = Meter()
 
-    label1 = torch.arange(args.way).repeat(args.query).cuda()
-    label = label1.flip(dims=[0])
+    label = torch.arange(args.way).repeat(args.query).flip(dims=[0]).cuda()
 
     k = args.way * args.shot
     tqdm_gen = tqdm.tqdm(loader)
@@ -52,7 +51,7 @@ def test_main(model, args):
     ''' define test dataset '''
     Dataset = dataset_builder(args)
     test_set = Dataset('test', args)
-    sampler = CategoriesSampler(test_set.label, args.test_episode, args.way, args.shot + args.query)
+    sampler = CategoriesSampler(test_set.label, args.test_episode, args.way,args.shot,args.shot + args.query)
     test_loader = DataLoader(test_set, batch_sampler=sampler, num_workers=2, pin_memory=True)
 
     ''' evaluate the model with the dataset '''
