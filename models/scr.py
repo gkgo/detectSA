@@ -72,10 +72,103 @@ class ChannelGate(nn.Module):
         scale = torch.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3)  # 50，640，1，1
         return scale
 
+# class SCR(nn.Module):
+#     def __init__(self, planes=[640, 64, 64, 64, 640], stride=(1, 1, 1), ksize=3, do_padding=False, bias=False):
+#         super(SCR, self).__init__()
+#         self.ksize = _quadruple(ksize) if isinstance(ksize, int) else ksize
+#         padding1 = (0, self.ksize[2] // 2, self.ksize[3] // 2) if do_padding else (0, 0, 0)
+
+#         self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
+#                                         nn.BatchNorm2d(planes[1]),
+#                                         nn.ReLU(inplace=True))
+#         self.conv1 = nn.Sequential(nn.Conv3d(planes[1], planes[2], (1, self.ksize[2], self.ksize[3]),
+#                                              stride=stride, bias=bias, padding=padding1),
+#                                    nn.BatchNorm3d(planes[2]),
+#                                    nn.ReLU(inplace=True))
+#         self.conv2 = nn.Sequential(nn.Conv3d(planes[2], planes[3], (1, self.ksize[2], self.ksize[3]),
+#                                              stride=stride, bias=bias, padding=padding1),
+#                                    nn.BatchNorm3d(planes[3]),
+#                                    nn.ReLU(inplace=True))
+#         self.conv1x1_out = nn.Sequential(
+#             nn.Conv2d(planes[3], planes[4], kernel_size=1, bias=False, padding=0),
+#             nn.BatchNorm2d(planes[4]))
+
+#         self.ChannelGate = ChannelGate(640)
+#         self.ChannelAttention = ChannelAttention(640)
+#     def forward(self, x):
+#         b, c, h, w, u, v = x.shape
+#         x = x.view(b, c, h * w, u * v)
+
+#         x = self.conv1x1_in(x)   # [80, 640, hw, 25] -> [80, 64, HW, 25]
+
+#         c = x.shape[1]
+#         x = x.view(b, c, h * w, u, v)
+#         x = self.conv1(x)  # [80, 64, hw, 5, 5] --> [80, 64, hw, 3, 3]
+#         x = self.conv2(x)  # [80, 64, hw, 3, 3] --> [80, 64, hw, 1, 1]
+
+#         c = x.shape[1]
+#         x = x.view(b, c, h, w)
+#         x = self.conv1x1_out(x)  # [80, 64, h, w] --> [80, 640, h, w]
+#         return x
+
+
+# class SelfCorrelationComputation(nn.Module):
+#     def __init__(self, kernel_size=(5, 5), padding=2):
+#         super(SelfCorrelationComputation, self).__init__()
+#         self.kernel_size = kernel_size
+#         self.unfold = nn.Unfold(kernel_size=kernel_size, padding=padding)
+#         self.relu = nn.ReLU(inplace=True)
+#         conv_nd = nn.Conv2d
+#         bn = nn.BatchNorm2d
+#         self.in_channels = 640
+#         self.g = conv_nd(in_channels=640, out_channels=64,
+#                          kernel_size=1, stride=1, padding=0)
+#         self.theta = conv_nd(in_channels=640, out_channels=64,
+#                              kernel_size=1, stride=1, padding=0)
+#         self.phi = conv_nd(in_channels=640, out_channels=64,
+#                            kernel_size=1, stride=1, padding=0)
+#         self.Q = nn.Sequential(
+#             conv_nd(in_channels=64, out_channels=640,
+#                     kernel_size=1, stride=1, padding=0),
+#             bn(self.in_channels)
+#         )
+#         self.ChannelGate = ChannelGate(640)
+
+#     def forward(self, x):
+#         b, c, h, w = x.shape
+
+#         x = self.relu(x)
+#         x = F.normalize(x, dim=1, p=2)
+#         identity = x
+
+#         x1 = self.g(identity).view(b, 64, -1)
+#         x1 = x1.permute(0, 2, 1)
+#         theta_x = self.theta(x).view(b,64, -1)
+#         theta_x = theta_x.permute(0, 2, 1)
+#         phi_x = self.phi(x).view(b, 64, -1)
+#         f = torch.matmul(theta_x, phi_x)
+#         f_div_C = F.softmax(f, dim=-1)
+#         y = torch.matmul(f_div_C, x1)
+#         y = y.permute(0,2,1).contiguous()
+
+#         y = y.view(b, 64, h, w)
+#         y = self.Q(y)
+#         # c_weight = self.ChannelGate(y)  # (5,640,1,1)
+#         # y = y * c_weight  # 支持  (5,640,5,5)
+#         identity = identity + y
+
+#         x = self.unfold(x)  # 提取出滑动的局部区域块，这里滑动窗口大小为5*5，步长为1
+#         # b, cuv, h, w  （80,640*5*5,5,5)
+#         x = x.view(b, c, self.kernel_size[0], self.kernel_size[1], h, w)  # b, c, u, v, h, w
+#         x = x * identity.unsqueeze(2).unsqueeze(2)  # 通过unsqueeze增维使identity和x变为同维度  公式（1）
+#         # b, c, u, v, h, w * b, c, 1, 1, h, w
+#         x = x.permute(0, 1, 4, 5, 2, 3).contiguous()  # b, c, h, w, u, v
+#         # torch.contiguous()方法首先拷贝了一份张量在内存中的地址，然后将地址按照形状改变后的张量的语义进行排列
+#         return x
 class SCR(nn.Module):
-    def __init__(self, planes=[640, 64, 64, 64, 640], stride=(1, 1, 1), ksize=3, do_padding=False, bias=False):
+    def __init__(self, planes=[640, 64, 64, 64, 640], stride=1, ksize=3, do_padding=False, bias=False):
         super(SCR, self).__init__()
-        self.ksize = _quadruple(ksize) if isinstance(ksize, int) else ksize
+        self.ksize = _quadruple(ksize) if isinstance(ksize, int) else ksize  # 4倍 isinstance() 函数来判断一个对象是否是一个已知的类型（是否与int一个类型）
         padding1 = (0, self.ksize[2] // 2, self.ksize[3] // 2) if do_padding else (0, 0, 0)
 
         self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
@@ -93,13 +186,11 @@ class SCR(nn.Module):
             nn.Conv2d(planes[3], planes[4], kernel_size=1, bias=False, padding=0),
             nn.BatchNorm2d(planes[4]))
 
-        self.ChannelGate = ChannelGate(640)
-        self.ChannelAttention = ChannelAttention(640)
     def forward(self, x):
         b, c, h, w, u, v = x.shape
         x = x.view(b, c, h * w, u * v)
 
-        x = self.conv1x1_in(x)   # [80, 640, hw, 25] -> [80, 64, HW, 25]
+        x = self.conv1x1_in(x)   # [80, 640, hw, 25] -> [80, 64, hw, 25]
 
         c = x.shape[1]
         x = x.view(b, c, h * w, u, v)
@@ -112,27 +203,12 @@ class SCR(nn.Module):
         return x
 
 
-class SelfCorrelationComputation(nn.Module):
+class SelfCorrelationComputation2(nn.Module):
     def __init__(self, kernel_size=(5, 5), padding=2):
-        super(SelfCorrelationComputation, self).__init__()
+        super(SelfCorrelationComputation2, self).__init__()
         self.kernel_size = kernel_size
         self.unfold = nn.Unfold(kernel_size=kernel_size, padding=padding)
         self.relu = nn.ReLU(inplace=True)
-        conv_nd = nn.Conv2d
-        bn = nn.BatchNorm2d
-        self.in_channels = 640
-        self.g = conv_nd(in_channels=640, out_channels=64,
-                         kernel_size=1, stride=1, padding=0)
-        self.theta = conv_nd(in_channels=640, out_channels=64,
-                             kernel_size=1, stride=1, padding=0)
-        self.phi = conv_nd(in_channels=640, out_channels=64,
-                           kernel_size=1, stride=1, padding=0)
-        self.Q = nn.Sequential(
-            conv_nd(in_channels=64, out_channels=640,
-                    kernel_size=1, stride=1, padding=0),
-            bn(self.in_channels)
-        )
-        self.ChannelGate = ChannelGate(640)
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -140,22 +216,6 @@ class SelfCorrelationComputation(nn.Module):
         x = self.relu(x)
         x = F.normalize(x, dim=1, p=2)
         identity = x
-
-        x1 = self.g(identity).view(b, 64, -1)
-        x1 = x1.permute(0, 2, 1)
-        theta_x = self.theta(x).view(b,64, -1)
-        theta_x = theta_x.permute(0, 2, 1)
-        phi_x = self.phi(x).view(b, 64, -1)
-        f = torch.matmul(theta_x, phi_x)
-        f_div_C = F.softmax(f, dim=-1)
-        y = torch.matmul(f_div_C, x1)
-        y = y.permute(0,2,1).contiguous()
-
-        y = y.view(b, 64, h, w)
-        y = self.Q(y)
-        # c_weight = self.ChannelGate(y)  # (5,640,1,1)
-        # y = y * c_weight  # 支持  (5,640,5,5)
-        identity = identity + y
 
         x = self.unfold(x)  # 提取出滑动的局部区域块，这里滑动窗口大小为5*5，步长为1
         # b, cuv, h, w  （80,640*5*5,5,5)
@@ -165,7 +225,7 @@ class SelfCorrelationComputation(nn.Module):
         x = x.permute(0, 1, 4, 5, 2, 3).contiguous()  # b, c, h, w, u, v
         # torch.contiguous()方法首先拷贝了一份张量在内存中的地址，然后将地址按照形状改变后的张量的语义进行排列
         return x
-
+    
 class SelfCorrelationComputation1(nn.Module):
     '''
     Scaled dot-product attention
