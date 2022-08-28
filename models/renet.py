@@ -45,9 +45,9 @@ class RENet(nn.Module):
 
         if self.args.self_method == 'scr':
 #             corr_block2 = SelfCorrelationComputation1(d_model=640, h=1) #self
-            corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
-            self_block = SCR(planes=planes, stride=stride)
-            # corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
+#             corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+#             self_block = SCR(planes=planes, stride=stride)
+            corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
             # corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)  # local
             # corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)   # gam
             # corr_block2 = SelfCorrelationComputation8(channels=640)  # nam
@@ -101,31 +101,31 @@ class RENet(nn.Module):
         # corr4d = self.get_4d_correlation_map(spt, qry)  # 10，5，5，5，5，5
         # num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
 #_____________________________________________________________________________________
-        way = spt.shape[0]
-        num_qry = qry.shape[0]
-        H_s, W_s, H_q, W_q = 5,5,5,5
-        spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
-        spt_attended1 = spt_attended1.view(num_qry, way,640,H_s, W_s)
-        qry_attended1 = qry_attended1.view(num_qry, way,640,H_q, W_q)
+#         way = spt.shape[0]
+#         num_qry = qry.shape[0]
+#         H_s, W_s, H_q, W_q = 5,5,5,5
+#         spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
+#         spt_attended1 = spt_attended1.view(num_qry, way,640,H_s, W_s)
+#         qry_attended1 = qry_attended1.view(num_qry, way,640,H_q, W_q)
 
-        spt_attended1 = F.relu(spt_attended1, inplace=True)
-        qry_attended1 = F.relu(qry_attended1, inplace=True)
+#         spt_attended1 = F.relu(spt_attended1, inplace=True)
+#         qry_attended1 = F.relu(qry_attended1, inplace=True)
 
-        d_s = spt_attended1.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
-        d_q = qry_attended1.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
+#         d_s = spt_attended1.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
+#         d_q = qry_attended1.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
 
-        # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
-        d_s = self.gaussian_normalize(d_s, dim=3)
-        d_q = self.gaussian_normalize(d_q, dim=3)
+#         # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
+#         d_s = self.gaussian_normalize(d_s, dim=3)
+#         d_q = self.gaussian_normalize(d_q, dim=3)
 
-        # applying softmax for each side
-        d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
-        d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
-        d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
-        d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
+#         # applying softmax for each side
+#         d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
+#         d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
+#         d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
+#         d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
 
-        spt_attended_c = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
-        qry_attended_c = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
+#         spt_attended_c = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
+#         qry_attended_c = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
 #——————————————————————————————————————————————————————————————————————————————————————————————
         corr4d = self.get_4d_correlation_map(spt, qry)  # 10，5，5，5，5，5
         num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
@@ -149,10 +149,10 @@ class RENet(nn.Module):
         attn_q = corr4d_q.sum(dim=[2, 3])  # 10，5，5，5
 
         # applying attention
-        # spt_attended = attn_s.unsqueeze(2) * spt.unsqueeze(0)  # 10，5，640，5，5
-        # qry_attended = attn_q.unsqueeze(2) * qry.unsqueeze(1)  # 10，5，640，5，5
-        spt_attended = attn_s.unsqueeze(2) * spt_attended_c  # 10，5，640，5，5
-        qry_attended = attn_q.unsqueeze(2) * qry_attended_c  # 10，5，640，5，5
+        spt_attended = attn_s.unsqueeze(2) * spt.unsqueeze(0)  # 10，5，640，5，5
+        qry_attended = attn_q.unsqueeze(2) * qry.unsqueeze(1)  # 10，5，640，5，5
+#         spt_attended = attn_s.unsqueeze(2) * spt_attended_c  # 10，5，640，5，5
+#         qry_attended = attn_q.unsqueeze(2) * qry_attended_c  # 10，5，640，5，5
 
         # averaging embeddings for k > 1 shots
         if self.args.shot > 1:
