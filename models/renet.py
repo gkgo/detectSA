@@ -45,8 +45,10 @@ class RENet(nn.Module):
 
         if self.args.self_method == 'scr':
 #             corr_block2 = SelfCorrelationComputation1(d_model=640, h=1) #self
+            corr_block2 = SelfCorrelationComputation4(channel=640)  # se
             corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
             self_block = SCR(planes=planes, stride=stride)
+        
 #             corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
 #             corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)  # local
             # corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)   # gam
@@ -70,7 +72,7 @@ class RENet(nn.Module):
             raise NotImplementedError
 
         if self.args.self_method == 'scr':
-#             layers.append(corr_block2)
+            layers.append(corr_block2)
             layers.append(corr_block)
         layers.append(self_block)
         return nn.Sequential(*layers)
