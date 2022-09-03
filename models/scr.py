@@ -20,6 +20,11 @@ import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 import warnings
+from timm.models.layers import trunc_normal_, DropPath
+import torch
+import torch.nn as nn
+import torch.nn.functional as Func
+from torch.nn.modules.utils import _quadruple
 
 class SpatialAttention(nn.Module):
     def __init__(self, kernel_size=3):
@@ -77,7 +82,7 @@ class ChannelGate(nn.Module):
 #         super(SCR, self).__init__()
 #         self.ksize = _quadruple(ksize) if isinstance(ksize, int) else ksize
 #         padding1 = (0, self.ksize[2] // 2, self.ksize[3] // 2) if do_padding else (0, 0, 0)
-
+#
 #         self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
 #                                         nn.BatchNorm2d(planes[1]),
 #                                         nn.ReLU(inplace=True))
@@ -92,26 +97,26 @@ class ChannelGate(nn.Module):
 #         self.conv1x1_out = nn.Sequential(
 #             nn.Conv2d(planes[3], planes[4], kernel_size=1, bias=False, padding=0),
 #             nn.BatchNorm2d(planes[4]))
-
+#
 #         self.ChannelGate = ChannelGate(640)
 #         self.ChannelAttention = ChannelAttention(640)
 #     def forward(self, x):
 #         b, c, h, w, u, v = x.shape
 #         x = x.view(b, c, h * w, u * v)
-
+#
 #         x = self.conv1x1_in(x)   # [80, 640, hw, 25] -> [80, 64, HW, 25]
-
+#
 #         c = x.shape[1]
 #         x = x.view(b, c, h * w, u, v)
 #         x = self.conv1(x)  # [80, 64, hw, 5, 5] --> [80, 64, hw, 3, 3]
 #         x = self.conv2(x)  # [80, 64, hw, 3, 3] --> [80, 64, hw, 1, 1]
-
+#
 #         c = x.shape[1]
 #         x = x.view(b, c, h, w)
 #         x = self.conv1x1_out(x)  # [80, 64, h, w] --> [80, 640, h, w]
 #         return x
-
-
+#
+#
 # class SelfCorrelationComputation(nn.Module):
 #     def __init__(self, kernel_size=(5, 5), padding=2):
 #         super(SelfCorrelationComputation, self).__init__()
@@ -133,14 +138,14 @@ class ChannelGate(nn.Module):
 #             bn(self.in_channels)
 #         )
 #         self.ChannelGate = ChannelGate(640)
-
+#
 #     def forward(self, x):
 #         b, c, h, w = x.shape
-
+#
 #         x = self.relu(x)
 #         x = F.normalize(x, dim=1, p=2)
 #         identity = x
-
+#
 #         x1 = self.g(identity).view(b, 64, -1)
 #         x1 = x1.permute(0, 2, 1)
 #         theta_x = self.theta(x).view(b,64, -1)
@@ -150,13 +155,11 @@ class ChannelGate(nn.Module):
 #         f_div_C = F.softmax(f, dim=-1)
 #         y = torch.matmul(f_div_C, x1)
 #         y = y.permute(0,2,1).contiguous()
-
+#
 #         y = y.view(b, 64, h, w)
 #         y = self.Q(y)
-#         # c_weight = self.ChannelGate(y)  # (5,640,1,1)
-#         # y = y * c_weight  # 支持  (5,640,5,5)
 #         identity = identity + y
-
+#
 #         x = self.unfold(x)  # 提取出滑动的局部区域块，这里滑动窗口大小为5*5，步长为1
 #         # b, cuv, h, w  （80,640*5*5,5,5)
 #         x = x.view(b, c, self.kernel_size[0], self.kernel_size[1], h, w)  # b, c, u, v, h, w
@@ -165,10 +168,12 @@ class ChannelGate(nn.Module):
 #         x = x.permute(0, 1, 4, 5, 2, 3).contiguous()  # b, c, h, w, u, v
 #         # torch.contiguous()方法首先拷贝了一份张量在内存中的地址，然后将地址按照形状改变后的张量的语义进行排列
 #         return x
+
 class SCR(nn.Module):
     def __init__(self, planes=[640, 64, 64, 64, 640], stride=1, ksize=3, do_padding=False, bias=False):
         super(SCR, self).__init__()
-        self.ksize = _quadruple(ksize) if isinstance(ksize, int) else ksize  # 4倍 isinstance() 函数来判断一个对象是否是一个已知的类型（是否与int一个类型）
+        self.ksize = _quadruple(ksize) if isinstance(ksize,
+                                                     int) else ksize  # 4倍 isinstance() 函数来判断一个对象是否是一个已知的类型（是否与int一个类型）
         padding1 = (0, self.ksize[2] // 2, self.ksize[3] // 2) if do_padding else (0, 0, 0)
 
         self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
@@ -185,12 +190,14 @@ class SCR(nn.Module):
         self.conv1x1_out = nn.Sequential(
             nn.Conv2d(planes[3], planes[4], kernel_size=1, bias=False, padding=0),
             nn.BatchNorm2d(planes[4]))
+        self.ChannelGate = ChannelGate(640)
+
 
     def forward(self, x):
         b, c, h, w, u, v = x.shape
         x = x.view(b, c, h * w, u * v)
 
-        x = self.conv1x1_in(x)   # [80, 640, hw, 25] -> [80, 64, hw, 25]
+        x = self.conv1x1_in(x)  # [80, 640, hw, 25] -> [80, 64, hw, 25]
 
         c = x.shape[1]
         x = x.view(b, c, h * w, u, v)
@@ -199,21 +206,36 @@ class SCR(nn.Module):
 
         c = x.shape[1]
         x = x.view(b, c, h, w)
-        x = self.conv1x1_out(x)  # [80, 64, h, w] --> [80, 640, h, w]
+        x = self.conv1x1_out(x)  # [80, 64, h, w] --> [80, 640, h, w]t
         return x
 
 
-class SelfCorrelationComputation2(nn.Module):
+class SelfCorrelationComputation(nn.Module):
     def __init__(self, kernel_size=(5, 5), padding=2):
-        super(SelfCorrelationComputation2, self).__init__()
+        super(SelfCorrelationComputation, self).__init__()
+        planes =[640, 64, 64, 640]
         self.kernel_size = kernel_size
         self.unfold = nn.Unfold(kernel_size=kernel_size, padding=padding)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
+
+        self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
+                                        nn.BatchNorm2d(planes[1]),
+                                        nn.ReLU(inplace=True))
+        self.embeddingFea = nn.Sequential(nn.Conv2d(1664, 640,
+                                                     kernel_size=1, bias=False, padding=0),
+                                           nn.BatchNorm2d(640),
+                                           nn.ReLU(inplace=True))
+        self.conv1x1_out = nn.Sequential(
+            nn.Conv2d(640, 640, kernel_size=1, bias=False, padding=0),
+            nn.BatchNorm2d(640))
 
     def forward(self, x):
+
+        x = self.conv1x1_in(x)
         b, c, h, w = x.shape
 
-        x = self.relu(x)
+        x0 = self.relu(x)
+        x = x0
         x = F.normalize(x, dim=1, p=2)
         identity = x
 
@@ -222,10 +244,20 @@ class SelfCorrelationComputation2(nn.Module):
         x = x.view(b, c, self.kernel_size[0], self.kernel_size[1], h, w)  # b, c, u, v, h, w
         x = x * identity.unsqueeze(2).unsqueeze(2)  # 通过unsqueeze增维使identity和x变为同维度  公式（1）
         # b, c, u, v, h, w * b, c, 1, 1, h, w
-        x = x.permute(0, 1, 4, 5, 2, 3).contiguous()  # b, c, h, w, u, v
+        x = x.view(b, -1, h, w)
+        # x = x.permute(0, 1, 4, 5, 2, 3).contiguous()  # b, c, h, w, u, v
         # torch.contiguous()方法首先拷贝了一份张量在内存中的地址，然后将地址按照形状改变后的张量的语义进行排列
-        return x
-    
+        # x = x.mean(dim=[-1, -2])
+        feature_gs = featureL2Norm(x)
+
+        # concatenate
+        feature_cat = torch.cat([identity, feature_gs], 1)
+
+        # embed
+        feature_embd = self.embeddingFea(feature_cat)
+        feature_embd = self.conv1x1_out(feature_embd)
+        return feature_embd
+
 class SelfCorrelationComputation1(nn.Module):
     '''
     Scaled dot-product attention
@@ -455,9 +487,6 @@ class SelfCorrelationComputation4(nn.Module):  # se
             nn.Sigmoid()
         )
 
-        self.ChannelGate = ChannelGate(640)
-        self.ChannelAttention = ChannelAttention(640)
-        self.SpatialAttention = SpatialAttention()
     def forward(self, x):
         x = self.conv1x1_in(x)
         b, c, _, _ = x.size()
@@ -618,109 +647,6 @@ class SelfCorrelationComputation6(nn.Module):  # local
         out_conv = self.dep_conv(f_conv)
 
         return self.rate1 * out_att + self.rate2 * out_conv
-
-
-
-def generate_spatial_descriptor(data, kernel_size):
-    '''
-    Applies self local similarity with fixed sliding window.
-    Args:
-        data: featuren map, variable of shape (b,c,h,w)
-        kernel_size: width/heigh of local window, int
-    Returns:
-        output: global spatial map, variable of shape (b,c,h,w)
-    '''
-
-    padding = int(kernel_size // 2)  # 5.7//2 = 2.0, 5.2//2 = 2.0
-    b, c, h, w = data.shape
-    p2d = _quadruple(padding)  # (pad_l,pad_r,pad_t,pad_b)
-    data_padded = F.pad(data, p2d, 'constant', 0)  # output variable
-    assert data_padded.shape == (
-    b, c, (h + 2 * padding), (w + 2 * padding)), 'Error: data_padded shape{} wrong!'.format(data_padded.shape)
-
-    output = torch.zeros(size=[b, kernel_size * kernel_size, h, w], requires_grad=data.requires_grad)
-    if data.is_cuda:
-        output = output.cuda(data.get_device())
-
-    for hi in range(h):
-        for wj in range(w):
-            q = data[:, :, hi, wj].contiguous()  # (b,c)
-            i = hi + padding  # h index in datapadded
-            j = wj + padding  # w index in datapadded
-
-            hs = i - padding
-            he = i + padding + 1
-            ws = j - padding
-            we = j + padding + 1
-            patch = data_padded[:, :, hs:he, ws:we].contiguous()  # (b,c,k,k)
-            assert (patch.shape == (b, c, kernel_size, kernel_size))
-            hk, wk = kernel_size, kernel_size
-
-            # reshape features for matrix multiplication
-            feature_a = q.view(b, c, 1 * 1).transpose(1, 2)  # (b,1,c) input is not contigous
-            feature_b = patch.view(b, c, hk * wk)  # (b,c,L)
-
-            # perform matrix mult.
-            feature_mul = torch.bmm(feature_a, feature_b)  # (b,1,L)
-            assert (feature_mul.shape == (b, 1, hk * wk))
-            # indexed [batch,row_A,col_A,row_B,col_B]
-            correlation_tensor = feature_mul.unsqueeze(1)  # (b,L)
-            output[:, :, hi, wj] = correlation_tensor.squeeze(1).squeeze(1)
-
-    return output
-
-
-def featureL2Norm(feature):
-    epsilon = 1e-6
-    norm = torch.pow(torch.sum(torch.pow(feature, 2), 1) + epsilon, 0.5).unsqueeze(1).expand_as(feature)
-    return torch.div(feature, norm)
-
-
-class SelfCorrelationComputation7(torch.nn.Module):  # DCCNet
-    '''
-    Spatial Context Encoder.
-    Author: Shuaiyi Huang
-    Input:
-        x: feature of shape (b,c,h,w)
-    Output:
-        feature_embd: context-aware semantic feature of shape (b,c+k**2,h,w), where k is the kernel size of spatial descriptor
-    '''
-
-    def __init__(self, planes=[640, 64, 64, 640], kernel_size=3):
-        super(SelfCorrelationComputation7, self).__init__()
-        self.kernel_size = kernel_size
-        self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
-                                        nn.BatchNorm2d(planes[1]),
-                                        nn.ReLU(inplace=True))
-        self.embeddingFea = nn.Sequential(nn.Conv2d(planes[1] + kernel_size * kernel_size, planes[2],
-                                                    kernel_size=1, bias=False, padding=0),
-                                          nn.BatchNorm2d(planes[2]),
-                                          nn.ReLU(inplace=True))
-        self.conv1x1_out = nn.Sequential(
-            nn.Conv2d(planes[2], planes[3], kernel_size=1, bias=False, padding=0),
-            nn.BatchNorm2d(planes[3]))
-
-        print('SpatialContextEncoder initialization: input_dim {},hidden_dim {}'.format(planes[1], planes[2]))
-        return
-
-    def forward(self, x):
-        # channel reduction
-        x = self.conv1x1_in(x)
-        feature_gs = generate_spatial_descriptor(x, kernel_size=self.kernel_size)
-
-        # Add L2norm
-        feature_gs = featureL2Norm(feature_gs)
-
-        # concatenate
-        feature_cat = torch.cat([x, feature_gs], 1)
-
-        # embed
-        feature_embd = self.embeddingFea(feature_cat)
-
-        # channel expansion
-        feature_embd = self.conv1x1_out(feature_embd)
-        return feature_embd
-
 
 
 class SelfCorrelationComputation10(nn.Module):  # nat
@@ -938,26 +864,132 @@ class SelfCorrelationComputation12(nn.Module): # cbam
 
 
 
-class SelfCorrelationComputation13(nn.Module): # eca
-    """Constructs a ECA module.
+def generate_spatial_descriptor(data, kernel_size):
+    '''
+    Applies self local similarity with fixed sliding window.
     Args:
-        channel: Number of channels of the input feature map
-        k_size: Adaptive selection of kernel size
-    """
-    def __init__(self, channel, k_size=3):
-        super(SelfCorrelationComputation13, self).__init__()
+        data: featuren map, variable of shape (b,c,h,w)
+        kernel_size: width/heigh of local window, int
+    Returns:
+        output: global spatial map, variable of shape (b,c,h,w)
+    '''
+
+    padding = int(kernel_size // 2)  # 5.7//2 = 2.0, 5.2//2 = 2.0
+    b, c, h, w = data.shape
+    p2d = _quadruple(padding)  # (pad_l,pad_r,pad_t,pad_b)
+    data_padded = Func.pad(data, p2d, 'constant', 0)  # output variable
+    assert data_padded.shape == (
+    b, c, (h + 2 * padding), (w + 2 * padding)), 'Error: data_padded shape{} wrong!'.format(data_padded.shape)
+
+    output = torch.zeros(size=[b, kernel_size * kernel_size, h, w], requires_grad=data.requires_grad)  # 80,25,5,5
+    if data.is_cuda:
+        output = output.cuda(data.get_device())
+
+    for hi in range(h):
+        for wj in range(w):
+            q = data[:, :, hi, wj].contiguous()  # (b,c)
+            i = hi + padding  # h index in datapadded
+            j = wj + padding  # w index in datapadded
+
+            hs = i - padding  # 0,5,0,5
+            he = i + padding + 1
+            ws = j - padding
+            we = j + padding + 1
+            patch = data_padded[:, :, hs:he, ws:we].contiguous()  # (b,c,k,k)
+            assert (patch.shape == (b, c, kernel_size, kernel_size))
+            hk, wk = kernel_size, kernel_size
+
+            # reshape features for matrix multiplication
+            feature_a = q.view(b, c, 1 * 1).transpose(1, 2)  # (b,1,c) input is not contigous
+            feature_b = patch.view(b, c, hk * wk)  # (b,c,L)
+
+            # perform matrix mult.
+            feature_mul = torch.bmm(feature_a, feature_b)  # (b,1,L)
+            assert (feature_mul.shape == (b, 1, hk * wk))
+            # indexed [batch,row_A,col_A,row_B,col_B]
+            correlation_tensor = feature_mul.unsqueeze(1)  # (b,L)
+            output[:, :, hi, wj] = correlation_tensor.squeeze(1).squeeze(1)
+
+    return output
+
+
+def featureL2Norm(feature):
+    epsilon = 1e-6
+    norm = torch.pow(torch.sum(torch.pow(feature, 2), 1) + epsilon, 0.5).unsqueeze(1).expand_as(feature)
+    return torch.div(feature, norm)
+
+class channelatt(nn.Module):  # se
+    def __init__(self, channel, reduction=25):
+        super(channelatt, self).__init__()
+        hdim = channel
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False)
-        self.sigmoid = nn.Sigmoid()
+        self.fc = nn.Sequential(
+            nn.Linear(hdim, hdim // reduction, bias=False),
+            nn.ReLU(inplace=False),
+            nn.Linear(hdim // reduction, hdim, bias=False),
+            nn.Sigmoid()
+        )
+
+        self.ChannelGate = ChannelGate(640)
+        self.ChannelAttention = ChannelAttention(640)
+        self.SpatialAttention = SpatialAttention()
 
     def forward(self, x):
-        # feature descriptor on the global spatial information
-        y = self.avg_pool(x)
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        x = x * y.expand_as(x)
+        return x
+class SpatialContextEncoder(torch.nn.Module):
+    '''
+    Spatial Context Encoder.
+    Author: Shuaiyi Huang
+    Input:
+        x: feature of shape (b,c,h,w)
+    Output:
+        feature_embd: context-aware semantic feature of shape (b,c+k**2,h,w), where k is the kernel size of spatial descriptor
+    '''
 
-        # Two different branches of ECA module
-        y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+    def __init__(self, planes=None, kernel_size=None):
+        super(SpatialContextEncoder, self).__init__()
+        self.kernel_size = kernel_size
+        self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
+                                        nn.BatchNorm2d(planes[1]),
+                                        nn.ReLU(inplace=True))
+        self.embeddingFea1 = nn.Sequential(nn.Conv2d(1664, planes[0],
+                                                    kernel_size=1, bias=False, padding=0),
+                                          nn.BatchNorm2d(planes[0]),
+                                          nn.ReLU(inplace=True))
+        self.embeddingFea2 = nn.Sequential(nn.Conv2d(640, planes[2],
+                                                    kernel_size=1, bias=False, padding=0),
+                                          nn.BatchNorm2d(planes[2]),
+                                          nn.ReLU(inplace=True))
+        self.conv1x1_out = nn.Sequential(
+            nn.Conv2d(planes[2], planes[3], kernel_size=1, bias=False, padding=0),
+            nn.BatchNorm2d(planes[3]))
+        self.channels = channelatt(640)
+        self.ChannelGate = ChannelGate(640)
+        self.kernel_size1 = (5, 5)
+        self.unfold = nn.Unfold(kernel_size=(5, 5), padding=2)
+        self.relu = nn.ReLU(inplace=True)
 
-        # Multi-scale information fusion
-        y = self.sigmoid(y)
+        print('SpatialContextEncoder initialization: input_dim {},hidden_dim {}'.format(planes[1], planes[2]))
+        return
 
-        return x * y.expand_as(x)
+    def forward(self, x,ide):
+        ide = self.conv1x1_in(ide)
+        x = self.conv1x1_in(x)
+        # feature_gs = generate_spatial_descriptor(x, kernel_size=self.kernel_size)
+        # Add L2norm
+        feature_gs = featureL2Norm(x)
+
+        # concatenate
+        feature_cat = torch.cat([ide, feature_gs], 1)
+        feature_embd = self.embeddingFea(feature_cat)
+        # embed
+        feature_embd1 = self.embeddingFea1(feature_cat)
+        feature_embd = self.embeddingFea2(feature_embd1)
+        # channel expansion
+        feature_embd = self.conv1x1_out(feature_embd)
+
+        return feature_embd
