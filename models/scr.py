@@ -20,7 +20,6 @@ import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 import warnings
-from timm.models.layers import trunc_normal_, DropPath
 import torch
 import torch.nn as nn
 import torch.nn.functional as Func
