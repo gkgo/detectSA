@@ -163,7 +163,7 @@ def parse_args(arg_mode):
 
     ''' about env '''
     parser.add_argument('-gpu', default='0', help='the GPU ids e.g. \"0\", \"0,1\", \"0,1,2\", etc')
-    parser.add_argument('-extra_dir', type=str, default='5w', help='extra dir name added to checkpoint dir')
+    parser.add_argument('-extra_dir', type=str, default='111', help='extra dir name added to checkpoint dir')
     parser.add_argument('-seed', type=int, default=2, help='random seed')
     parser.add_argument('-no_wandb', action='store_true', help='not plotting learning curve on wandb',
                         default=arg_mode == 'test')  # train: enable logging / test: disable logging
