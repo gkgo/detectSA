@@ -44,10 +44,10 @@ class RENet(nn.Module):
         if self.args.self_method == 'scr':
 #             corr_block2 = SelfCorrelationComputation1(d_model=640, h=1) #self
 #             corr_block2 = SelfCorrelationComputation4(channel=640)  # se
-            corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+#             corr_block = mySelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
             # corr_block2 = SpatialContextEncoder(planes=[640, 64, 64, 640], kernel_size=kernel_size[0])  #sce
-#             corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
-#             self_block = SCR(planes=planes, stride=stride)
+            corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+            self_block = SCR(planes=planes, stride=stride)
             # corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
             # corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)  # local
             # corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)   # gam
@@ -73,7 +73,7 @@ class RENet(nn.Module):
         if self.args.self_method == 'scr':
             layers.append(corr_block)
         #     layers.append(corr_block)
-        # layers.append(self_block)
+        layers.append(self_block)
         return nn.Sequential(*layers)
 
     def forward(self, input):
@@ -98,55 +98,55 @@ class RENet(nn.Module):
         spt = self.normalize_feature(spt)  # 1
         qry = self.normalize_feature(qry)
 #_________________________________________________________________________________baseline
-        # way = spt.shape[0]
-        # num_qry = qry.shape[0]
-        # H_s, W_s, H_q, W_q = 5,5,5,5
-        # spt_c = F.normalize(spt, p=2, dim=1, eps=1e-8)
-        # qry_c = F.normalize(qry, p=2, dim=1, eps=1e-8)
-        # # way , C , H_s , W_s --> num_qry * way, C , H_s , W_s
-        # # num_qry , C , H_q , W_q --> num_qry * way,C ,H_q , W_q
-        # spt_c = spt_c.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)
-        # qry_c = qry_c.unsqueeze(1).repeat(1, way, 1, 1, 1)
-        # d_s = spt_c.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
-        # d_q = qry_c.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
-        # d_s = self.gaussian_normalize(d_s, dim=3)
-        # d_q = self.gaussian_normalize(d_q, dim=3)
-        #
-        # # applying softmax for each side
-        # d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
-        # d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
-        # d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
-        # d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
-        #
-        # spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
-        # qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
-
-#_____________________________________________________________________________________
         way = spt.shape[0]
         num_qry = qry.shape[0]
         H_s, W_s, H_q, W_q = 5,5,5,5
-        spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
-        spt_attended1 = spt_attended1.view(num_qry, way,640,H_s, W_s)
-        qry_attended1 = qry_attended1.view(num_qry, way,640,H_q, W_q)
-
-        spt_attended1 = F.relu(spt_attended1, inplace=True)
-        qry_attended1 = F.relu(qry_attended1, inplace=True)
-
-        d_s = spt_attended1.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
-        d_q = qry_attended1.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
-
-        # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
+        spt_c = F.normalize(spt, p=2, dim=1, eps=1e-8)
+        qry_c = F.normalize(qry, p=2, dim=1, eps=1e-8)
+        # way , C , H_s , W_s --> num_qry * way, C , H_s , W_s
+        # num_qry , C , H_q , W_q --> num_qry * way,C ,H_q , W_q
+        spt_c = spt_c.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)
+        qry_c = qry_c.unsqueeze(1).repeat(1, way, 1, 1, 1)
+        d_s = spt_c.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
+        d_q = qry_c.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
         d_s = self.gaussian_normalize(d_s, dim=3)
         d_q = self.gaussian_normalize(d_q, dim=3)
-
+        
         # applying softmax for each side
         d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
         d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
         d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
         d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
-
+        
         spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
         qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
+
+#_____________________________________________________________________________________
+#         way = spt.shape[0]
+#         num_qry = qry.shape[0]
+#         H_s, W_s, H_q, W_q = 5,5,5,5
+#         spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
+#         spt_attended1 = spt_attended1.view(num_qry, way,640,H_s, W_s)
+#         qry_attended1 = qry_attended1.view(num_qry, way,640,H_q, W_q)
+
+#         spt_attended1 = F.relu(spt_attended1, inplace=True)
+#         qry_attended1 = F.relu(qry_attended1, inplace=True)
+
+#         d_s = spt_attended1.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
+#         d_q = qry_attended1.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
+
+#         # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
+#         d_s = self.gaussian_normalize(d_s, dim=3)
+#         d_q = self.gaussian_normalize(d_q, dim=3)
+
+#         # applying softmax for each side
+#         d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
+#         d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
+#         d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
+#         d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
+
+#         spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
+#         qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
 #——————————————————————————————————————————————————————————————————————————————————————————————
         # corr4d = self.get_4d_correlation_map(spt_attended_c, qry_attended_c)  # 10，5，5，5，5，5
         # num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
