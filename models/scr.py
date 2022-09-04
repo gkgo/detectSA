@@ -882,6 +882,19 @@ class SelfCorrelationComputation12(nn.Module): # cbam
 
 
 
+""" code reference: https://github.com/ShuaiyiHuang/DCCNet """
+
+'''
+Shuaiyi Huang
+Implement Spatial Context Encoder.
+'''
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as Func
+from torch.nn.modules.utils import _quadruple
+
+
 def generate_spatial_descriptor(data, kernel_size):
     '''
     Applies self local similarity with fixed sliding window.
@@ -899,7 +912,7 @@ def generate_spatial_descriptor(data, kernel_size):
     assert data_padded.shape == (
     b, c, (h + 2 * padding), (w + 2 * padding)), 'Error: data_padded shape{} wrong!'.format(data_padded.shape)
 
-    output = torch.zeros(size=[b, kernel_size * kernel_size, h, w], requires_grad=data.requires_grad)  # 80,25,5,5
+    output = torch.zeros(size=[b, kernel_size * kernel_size, h, w], requires_grad=data.requires_grad)
     if data.is_cuda:
         output = output.cuda(data.get_device())
 
@@ -909,7 +922,7 @@ def generate_spatial_descriptor(data, kernel_size):
             i = hi + padding  # h index in datapadded
             j = wj + padding  # w index in datapadded
 
-            hs = i - padding  # 0,5,0,5
+            hs = i - padding
             he = i + padding + 1
             ws = j - padding
             we = j + padding + 1
@@ -936,28 +949,7 @@ def featureL2Norm(feature):
     norm = torch.pow(torch.sum(torch.pow(feature, 2), 1) + epsilon, 0.5).unsqueeze(1).expand_as(feature)
     return torch.div(feature, norm)
 
-class channelatt(nn.Module):  # se
-    def __init__(self, channel, reduction=25):
-        super(channelatt, self).__init__()
-        hdim = channel
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(hdim, hdim // reduction, bias=False),
-            nn.ReLU(inplace=False),
-            nn.Linear(hdim // reduction, hdim, bias=False),
-            nn.Sigmoid()
-        )
 
-        self.ChannelGate = ChannelGate(640)
-        self.ChannelAttention = ChannelAttention(640)
-        self.SpatialAttention = SpatialAttention()
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        x = x * y.expand_as(x)
-        return x
 class SpatialContextEncoder(torch.nn.Module):
     '''
     Spatial Context Encoder.
@@ -974,40 +966,32 @@ class SpatialContextEncoder(torch.nn.Module):
         self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
                                         nn.BatchNorm2d(planes[1]),
                                         nn.ReLU(inplace=True))
-        self.embeddingFea1 = nn.Sequential(nn.Conv2d(1664, planes[0],
-                                                    kernel_size=1, bias=False, padding=0),
-                                          nn.BatchNorm2d(planes[0]),
-                                          nn.ReLU(inplace=True))
-        self.embeddingFea2 = nn.Sequential(nn.Conv2d(640, planes[2],
+        self.embeddingFea = nn.Sequential(nn.Conv2d(planes[1] + kernel_size * kernel_size, planes[2],
                                                     kernel_size=1, bias=False, padding=0),
                                           nn.BatchNorm2d(planes[2]),
                                           nn.ReLU(inplace=True))
         self.conv1x1_out = nn.Sequential(
             nn.Conv2d(planes[2], planes[3], kernel_size=1, bias=False, padding=0),
             nn.BatchNorm2d(planes[3]))
-        self.channels = channelatt(640)
-        self.ChannelGate = ChannelGate(640)
-        self.kernel_size1 = (5, 5)
-        self.unfold = nn.Unfold(kernel_size=(5, 5), padding=2)
-        self.relu = nn.ReLU(inplace=True)
 
         print('SpatialContextEncoder initialization: input_dim {},hidden_dim {}'.format(planes[1], planes[2]))
         return
 
-    def forward(self, x,ide):
-        ide = self.conv1x1_in(ide)
+    def forward(self, x):
+        # channel reduction
         x = self.conv1x1_in(x)
-        # feature_gs = generate_spatial_descriptor(x, kernel_size=self.kernel_size)
+        feature_gs = generate_spatial_descriptor(x, kernel_size=self.kernel_size)
+
         # Add L2norm
-        feature_gs = featureL2Norm(x)
+        feature_gs = featureL2Norm(feature_gs)
 
         # concatenate
-        feature_cat = torch.cat([ide, feature_gs], 1)
-        feature_embd = self.embeddingFea(feature_cat)
+        feature_cat = torch.cat([x, feature_gs], 1)
+
         # embed
-        feature_embd1 = self.embeddingFea1(feature_cat)
-        feature_embd = self.embeddingFea2(feature_embd1)
+        feature_embd = self.embeddingFea(feature_cat)
+
         # channel expansion
         feature_embd = self.conv1x1_out(feature_embd)
-
         return feature_embd
+
