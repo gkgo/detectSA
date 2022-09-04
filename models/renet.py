@@ -48,8 +48,8 @@ class RENet(nn.Module):
 #             corr_block2 = SpatialContextEncoder(planes=[640, 64, 64, 640], kernel_size=kernel_size[0])  #sce
 #             corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
 #             self_block = SCR(planes=planes, stride=stride)
-            corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
-            # corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)  # local
+#             corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
+            corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)  # local
             # corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)   # gam
             # corr_block2 = SelfCorrelationComputation8(channels=640)  # nam
             # corr_block2 = SelfCorrelationComputation4(channel=640)  # se
