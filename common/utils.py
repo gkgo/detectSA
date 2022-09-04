@@ -26,7 +26,7 @@ def setup_run(arg_mode='train'):
 
     if args.dataset == 'miniimagenet':
         args.num_class = 64
-    elif args.dataset == 'cub321':
+    elif args.dataset == 'cub':
         args.num_class = 100
     elif args.dataset == 'fc100':
         args.num_class = 60
@@ -132,7 +132,7 @@ def parse_args(arg_mode):
     parser = argparse.ArgumentParser(description='Relational Embedding for Few-Shot Classification (ICCV 2021)')
 
     ''' about dataset '''
-    parser.add_argument('-dataset', type=str, default='cub321',
+    parser.add_argument('-dataset', type=str, default='cub',
                         choices=['miniimagenet', 'cub', 'tieredimagenet', 'cifar_fs'])
     parser.add_argument('-data_dir', type=str, default='datasets', help='dir of datasets')
 
