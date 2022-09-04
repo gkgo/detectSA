@@ -54,8 +54,8 @@ class RENet(nn.Module):
 #             corr_block2 = SelfCorrelationComputation8(channels=640)  # nam
 #             corr_block2 = SelfCorrelationComputation12(channel=640) # cbam
 #             corr_block2 = SelfCorrelationComputation3(in_channels=640) # nonl
-            corr_block2 = SelfCorrelationComputation13(channel=640)   # eca
-#             corr_block2 = SelfCorrelationComputation10(dim=640, kernel_size=5, num_heads=1) # nat
+#             corr_block2 = SelfCorrelationComputation13(channel=640)   # eca
+            corr_block2 = SelfCorrelationComputation10(dim=640, kernel_size=5, num_heads=1) # nat
             # corr_block2 = SelfCorrelationComputation2(in_channels=640, out_channels=640, kernel_size=5)
         # elif self.args.self_method == 'sce':
         #     planes = [640, 64, 64, 640]
