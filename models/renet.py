@@ -44,10 +44,10 @@ class RENet(nn.Module):
         if self.args.self_method == 'scr':
 #             corr_block2 = SelfCorrelationComputation1(d_model=640, h=1) #self
 #             corr_block2 = SelfCorrelationComputation4(channel=640)  # se
-            corr_block2 = mySelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+#             corr_block2 = mySelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
 #             corr_block2 = SpatialContextEncoder(planes=[640, 64, 64, 640], kernel_size=kernel_size[0])  #sce
-#             corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
-#             self_block = SCR(planes=planes, stride=stride)
+            corr_block = SelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+            self_block = SCR(planes=planes, stride=stride)
 #             corr_block2 = SelfCorrelationComputation9(channel=640)  # CA
 #             corr_block2 = SelfCorrelationComputation6(in_planes=640, out_planes=640)  # local
 #             corr_block2 = SelfCorrelationComputation5(in_channels=640, out_channels=640)   # gam
@@ -70,9 +70,9 @@ class RENet(nn.Module):
             raise NotImplementedError
 
         if self.args.self_method == 'scr':
-            layers.append(corr_block2)
-        #     layers.append(corr_block)
-#         layers.append(self_block)
+#             layers.append(corr_block2)
+            layers.append(corr_block)
+        layers.append(self_block)
         return nn.Sequential(*layers)
 
     def forward(self, input):
@@ -234,15 +234,15 @@ class RENet(nn.Module):
     def encode(self, x, do_gap=True):
         x = self.encoder(x)
 
-#         if self.args.self_method:
-#             identity = x  # (80,640,5,5)
-#             x = self.scr_module(x)
+        if self.args.self_method:
+            identity = x  # (80,640,5,5)
+            x = self.scr_module(x)
 
-#             # x = self.match_net2(x,identity)
+            # x = self.match_net2(x,identity)
 
-#             if self.args.self_method == 'scr':
-#                 x = x + identity   # 公式（2）
-#             x = F.relu(x, inplace=True)
+            if self.args.self_method == 'scr':
+                x = x + identity   # 公式（2）
+            x = F.relu(x, inplace=True)
 
         if do_gap:
             return F.adaptive_avg_pool2d(x, 1)
