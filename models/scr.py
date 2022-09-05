@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as Func
 from torch.nn.modules.utils import _quadruple
-from timm.models.layers import trunc_normal_, DropPath
+
 
 class SpatialAttention(nn.Module):
     def __init__(self, kernel_size=3):
