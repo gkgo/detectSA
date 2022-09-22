@@ -70,9 +70,9 @@ class RENet(nn.Module):
             raise NotImplementedError
 
         if self.args.self_method == 'scr':
-#             layers.append(corr_block2)
-            layers.append(corr_block)
-        layers.append(self_block)
+            layers.append(corr_block2)
+#             layers.append(corr_block)
+#         layers.append(self_block)
         return nn.Sequential(*layers)
 
     def forward(self, input):
