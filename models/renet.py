@@ -147,32 +147,32 @@ class RENet(nn.Module):
 #         spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
 #         qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
 #——————————————————————————————————————————————————————————————————————————————————————————————
-#       # (S * C * Hs * Ws, Q * C * Hq * Wq) -> Q * S * Hs * Ws * Hq * Wq
-#         corr4d = self.get_4d_correlation_map(spt, qry)
-#         num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
+      # (S * C * Hs * Ws, Q * C * Hq * Wq) -> Q * S * Hs * Ws * Hq * Wq
+        corr4d = self.get_4d_correlation_map(spt, qry)
+        num_qry, way, H_s, W_s, H_q, W_q = corr4d.size()
 
-#         # corr4d refinement
+        # corr4d refinement
 #         corr4d = self.cca_module(corr4d.view(-1, 1, H_s, W_s, H_q, W_q))
-#         corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)
-#         corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)
+        corr4d_s = corr4d.view(num_qry, way, H_s * W_s, H_q, W_q)
+        corr4d_q = corr4d.view(num_qry, way, H_s, W_s, H_q * W_q)
 
-#         # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
-#         corr4d_s = self.gaussian_normalize(corr4d_s, dim=2)
-#         corr4d_q = self.gaussian_normalize(corr4d_q, dim=4)
+        # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
+        corr4d_s = self.gaussian_normalize(corr4d_s, dim=2)
+        corr4d_q = self.gaussian_normalize(corr4d_q, dim=4)
 
-#         # applying softmax for each side
-#         corr4d_s = F.softmax(corr4d_s / self.args.temperature_attn, dim=2)
-#         corr4d_s = corr4d_s.view(num_qry, way, H_s, W_s, H_q, W_q)
-#         corr4d_q = F.softmax(corr4d_q / self.args.temperature_attn, dim=4)
-#         corr4d_q = corr4d_q.view(num_qry, way, H_s, W_s, H_q, W_q)
+        # applying softmax for each side
+        corr4d_s = F.softmax(corr4d_s / self.args.temperature_attn, dim=2)
+        corr4d_s = corr4d_s.view(num_qry, way, H_s, W_s, H_q, W_q)
+        corr4d_q = F.softmax(corr4d_q / self.args.temperature_attn, dim=4)
+        corr4d_q = corr4d_q.view(num_qry, way, H_s, W_s, H_q, W_q)
 
-#         # suming up matching scores
-#         attn_s = corr4d_s.sum(dim=[4, 5])
-#         attn_q = corr4d_q.sum(dim=[2, 3])
+        # suming up matching scores
+        attn_s = corr4d_s.sum(dim=[4, 5])
+        attn_q = corr4d_q.sum(dim=[2, 3])
 
-#         # applying attention
-#         spt_attended = attn_s.unsqueeze(2) * spt.unsqueeze(0)
-#         qry_attended = attn_q.unsqueeze(2) * qry.unsqueeze(1)
+        # applying attention
+        spt_attended = attn_s.unsqueeze(2) * spt.unsqueeze(0)
+        qry_attended = attn_q.unsqueeze(2) * qry.unsqueeze(1)
 
 
         # averaging embeddings for k > 1 shots
