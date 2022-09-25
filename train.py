@@ -21,7 +21,7 @@ def train(epoch, model, loader, optimizer, args=None):
     train_loader_aux = loader['train_loader_aux']
 
     # label for query set, always in the same pattern
-    label = torch.arange(args.way).repeat(args.query).flip(dims=[0]).cuda()  # 432104321043210....
+    label = torch.arange(args.way).repeat(args.query).cuda()  # 432104321043210....
 
 
     loss_meter = Meter()
