@@ -121,31 +121,31 @@ class RENet(nn.Module):
         qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
 
 #_____________________________________________________________________________________
-        way = spt.shape[0]
-        num_qry = qry.shape[0]
-        H_s, W_s, H_q, W_q = 5,5,5,5
-        spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
-        spt_attended1 = spt_attended1.view(num_qry, way,640,H_s, W_s)
-        qry_attended1 = qry_attended1.view(num_qry, way,640,H_q, W_q)
+#         way = spt.shape[0]
+#         num_qry = qry.shape[0]
+#         H_s, W_s, H_q, W_q = 5,5,5,5
+#         spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
+#         spt_attended1 = spt_attended1.view(num_qry, way,640,H_s, W_s)
+#         qry_attended1 = qry_attended1.view(num_qry, way,640,H_q, W_q)
 
-        spt_attended1 = F.relu(spt_attended1, inplace=True)
-        qry_attended1 = F.relu(qry_attended1, inplace=True)
+#         spt_attended1 = F.relu(spt_attended1, inplace=True)
+#         qry_attended1 = F.relu(qry_attended1, inplace=True)
 
-        d_s = spt_attended1.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
-        d_q = qry_attended1.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
+#         d_s = spt_attended1.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
+#         d_q = qry_attended1.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
 
-        # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
-        d_s = self.gaussian_normalize(d_s, dim=3)
-        d_q = self.gaussian_normalize(d_q, dim=3)
+#         # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
+#         d_s = self.gaussian_normalize(d_s, dim=3)
+#         d_q = self.gaussian_normalize(d_q, dim=3)
 
-        # applying softmax for each side
-        d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
-        d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
-        d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
-        d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
+#         # applying softmax for each side
+#         d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
+#         d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
+#         d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
+#         d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
 
-        spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
-        qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
+#         spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
+#         qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
 #——————————————————————————————————————————————————————————————————————————————————————————————
       # (S * C * Hs * Ws, Q * C * Hq * Wq) -> Q * S * Hs * Ws * Hq * Wq
 #         corr4d = self.get_4d_correlation_map(spt, qry)
