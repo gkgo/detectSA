@@ -29,10 +29,10 @@ class CategoriesSampler():
                 pos = torch.randperm(len(l))[:self.n_per]  # sample n_per data index of this class
                 batch.append(l[pos])
             batch = torch.stack(batch).t().reshape(-1)
-            batch1 = batch[0:self.n_shot]
-            batch2 = batch[self.n_shot:]
-            x = batch2.flip(dims=[0])
-            batch = torch.cat((batch1,x), dim=0)
+#             batch1 = batch[0:self.n_shot]
+#             batch2 = batch[self.n_shot:]
+#             x = batch2.flip(dims=[0])
+#             batch = torch.cat((batch1,x), dim=0)
             # .t() transpose,
             # due to it, the label is in the sequence of abcdabcdabcd form after reshape,
             # instead of aaaabbbbccccdddd
