@@ -200,9 +200,9 @@ class match_block(nn.Module):
         # way , C , H_s , W_s --> num_qry * way, C , H_s , W_s
         # num_qry , C , H_q , W_q --> num_qry * way,C ,H_q , W_q
         spt = spt.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)
-        spt = spt.view(-1, 640, 5, 5) # num_qry * way, C , H_s , W_s
+        spt = spt.view(-1, 640, 11,11) # num_qry * way, C , H_s , W_s
         qry = qry.unsqueeze(1).repeat(1, way, 1, 1, 1)
-        qry = qry.view(-1, 640, 5, 5) # num_qry * way,C ,H_q , W_q
+        qry = qry.view(-1, 640,11, 11) # num_qry * way,C ,H_q , W_q
         c_weight1 = self.ChannelAttention(spt)
         c_weight2 = self.ChannelAttention(qry)
         xq = qry * c_weight1
