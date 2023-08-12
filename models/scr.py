@@ -26,56 +26,56 @@ import torch.nn.functional as Func
 from torch.nn.modules.utils import _quadruple
 
 
-class SpatialAttention(nn.Module):
-    def __init__(self, kernel_size=3):
-        super(SpatialAttention, self).__init__()
+# class SpatialAttention(nn.Module):
+#     def __init__(self, kernel_size=3):
+#         super(SpatialAttention, self).__init__()
 
-        assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
-        padding = 3 if kernel_size == 7 else 1
-        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
-        self.sigmoid = nn.Sigmoid()
-        self.relu = nn.ReLU(inplace=True)
-    def forward(self, x):
-        avg_out = torch.mean(x, dim=1, keepdim=True)  # 80,1,5,5
-        max_out, _ = torch.max(x, dim=1, keepdim=True)  # 80,1,5,5
-        x = torch.cat([avg_out, max_out], dim=1)
-        x = self.conv1(x)  # 80,1,5,5
-        return self.sigmoid(x)
+#         assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
+#         padding = 3 if kernel_size == 7 else 1
+#         self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
+#         self.sigmoid = nn.Sigmoid()
+#         self.relu = nn.ReLU(inplace=True)
+#     def forward(self, x):
+#         avg_out = torch.mean(x, dim=1, keepdim=True)  # 80,1,5,5
+#         max_out, _ = torch.max(x, dim=1, keepdim=True)  # 80,1,5,5
+#         x = torch.cat([avg_out, max_out], dim=1)
+#         x = self.conv1(x)  # 80,1,5,5
+#         return self.sigmoid(x)
 
-class Flatten(nn.Module):
-    def forward(self, x):
-        return x.view(x.size(0), -1)
+# class Flatten(nn.Module):
+#     def forward(self, x):
+#         return x.view(x.size(0), -1)
 
-class ChannelGate(nn.Module):
-    def __init__(self, gate_channels, reduction_ratio=10, pool_types=['avg', 'max']):
-        super(ChannelGate, self).__init__()
-        self.gate_channels = gate_channels
-        self.mlp = nn.Sequential(
-            Flatten(),
-            nn.Linear(gate_channels, gate_channels // reduction_ratio),
-            nn.ReLU(),
-            nn.Linear(gate_channels // reduction_ratio, gate_channels)
-        )
+# class ChannelGate(nn.Module):
+#     def __init__(self, gate_channels, reduction_ratio=10, pool_types=['avg', 'max']):
+#         super(ChannelGate, self).__init__()
+#         self.gate_channels = gate_channels
+#         self.mlp = nn.Sequential(
+#             Flatten(),
+#             nn.Linear(gate_channels, gate_channels // reduction_ratio),
+#             nn.ReLU(),
+#             nn.Linear(gate_channels // reduction_ratio, gate_channels)
+#         )
 
-        self.pool_types = pool_types
-        self.relu = nn.ReLU(inplace=True)
-    def forward(self, x):
-        channel_att_sum = None
-        for pool_type in self.pool_types:
-            if pool_type == 'avg':
-                avg_pool = F.avg_pool2d(x, (x.size(2), x.size(3)), stride=(x.size(2), x.size(3)))  # 50，640，1，1
-                channel_att_raw = self.mlp(avg_pool)  # 50，640
-            elif pool_type == 'max':
-                max_pool = F.max_pool2d(x, (x.size(2), x.size(3)), stride=(x.size(2), x.size(3)))  # 50，640，1，1
-                channel_att_raw = self.mlp(max_pool)
+#         self.pool_types = pool_types
+#         self.relu = nn.ReLU(inplace=True)
+#     def forward(self, x):
+#         channel_att_sum = None
+#         for pool_type in self.pool_types:
+#             if pool_type == 'avg':
+#                 avg_pool = F.avg_pool2d(x, (x.size(2), x.size(3)), stride=(x.size(2), x.size(3)))  # 50，640，1，1
+#                 channel_att_raw = self.mlp(avg_pool)  # 50，640
+#             elif pool_type == 'max':
+#                 max_pool = F.max_pool2d(x, (x.size(2), x.size(3)), stride=(x.size(2), x.size(3)))  # 50，640，1，1
+#                 channel_att_raw = self.mlp(max_pool)
 
-            if channel_att_sum is None:
-                channel_att_sum = channel_att_raw
-            else:
-                channel_att_sum = channel_att_sum + channel_att_raw
+#             if channel_att_sum is None:
+#                 channel_att_sum = channel_att_raw
+#             else:
+#                 channel_att_sum = channel_att_sum + channel_att_raw
 
-        scale = torch.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3)  # 50，640，1，1
-        return scale
+#         scale = torch.sigmoid(channel_att_sum).unsqueeze(2).unsqueeze(3)  # 50，640，1，1
+#         return scale
 
 # class SCR(nn.Module):
 #     def __init__(self, planes=[640, 64, 64, 64, 640], stride=(1, 1, 1), ksize=3, do_padding=False, bias=False):
