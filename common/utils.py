@@ -19,7 +19,7 @@ def setup_run(arg_mode='train'):
     ensure_path(args.save_path)
 
     if not args.no_wandb:
-        wandb.init(project=f'renet gai-{args.dataset}-{args.way}w{args.shot}s',
+        wandb.init(project=f'SCNet-{args.dataset}-{args.way}w{args.shot}s',
                    config=args,
                    save_code=True,
                    name=args.extra_dir)
@@ -137,7 +137,7 @@ def parse_args(arg_mode):
     parser.add_argument('-data_dir', type=str, default='datasets', help='dir of datasets')
 
     ''' about training specs '''
-    parser.add_argument('-batch', type=int, default=64, help='auxiliary batch size')
+    parser.add_argument('-batch', type=int, default=1, help='auxiliary batch size')
     parser.add_argument('-temperature', type=float, default=0.20, metavar='tau', help='temperature for metric-based loss')
     parser.add_argument('-lamb', type=float, default=1.75, metavar='lambda', help='loss balancing term')
 
@@ -155,10 +155,10 @@ def parse_args(arg_mode):
     parser.add_argument('-val_episode', type=int, default=200, help='number of validation episode')
     parser.add_argument('-test_episode', type=int, default=2000, help='number of testing episodes after training')
 
-    ''' about SCR '''
-    parser.add_argument('-self_method', type=str, default='scr')
+    ''' about SA '''
+    parser.add_argument('-self_method', type=str, default='sa')
 
-    ''' about CCA '''
+    ''' about CA '''
     parser.add_argument('-temperature_attn', type=float, default=2.0, metavar='gamma', help='temperature for softmax in computing cross-attention')
 
     ''' about env '''
