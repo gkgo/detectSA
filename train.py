@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from common.meter import Meter
-from common.utils import detect_grad_nan, compute_accuracy, set_seed, setup_run
+from common.utils import  compute_accuracy, set_seed, setup_run
 from models.dataloader.samplers import CategoriesSampler
 from models.dataloader.data_utils import dataset_builder
 from models.renet import RENet
@@ -21,7 +21,7 @@ def train(epoch, model, loader, optimizer, args=None):
     train_loader_aux = loader['train_loader_aux']
 
     # label for query set, always in the same pattern
-    label = torch.arange(args.way).repeat(args.query).cuda()  # 432104321043210....
+    label = torch.arange(args.way).repeat(args.query).flip(dims=[0]).cuda()  # 432104321043210....
 
 
     loss_meter = Meter()
@@ -41,12 +41,11 @@ def train(epoch, model, loader, optimizer, args=None):
         data_aux = model(data_aux)  # I prefer to separate feed-forwarding data and data_aux due to BN
 
         # loss for batch
-        model.module.mode = 'cca'
+        model.module.mode = 'ca'
         data_shot, data_query = data[:k], data[k:]
         logits, absolute_logits = model((data_shot.unsqueeze(0).repeat(args.num_gpu, 1, 1, 1, 1), data_query))
         epi_loss = F.cross_entropy(logits, label)
         absolute_loss = F.cross_entropy(absolute_logits, train_labels[k:])
-        # loss1 = F.cross_entropy(logits1, label)
 
         # loss for auxiliary batch
         model.module.mode = 'fc'
@@ -63,7 +62,6 @@ def train(epoch, model, loader, optimizer, args=None):
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 2.0)
-#         detect_grad_nan(model)
         optimizer.step()
         optimizer.zero_grad()
 
