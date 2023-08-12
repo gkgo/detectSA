@@ -209,26 +209,6 @@ class SCR(nn.Module):
         x = self.conv1x1_out(x)  # [80, 64, h, w] --> [80, 640, h, w]t
         return x
 
-class SelfCorrelationComputation(nn.Module):
-    def __init__(self, kernel_size=(5, 5), padding=2):
-        super(SelfCorrelationComputation, self).__init__()
-        self.kernel_size = kernel_size
-        self.unfold = nn.Unfold(kernel_size=kernel_size, padding=padding)
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        b, c, h, w = x.shape
-
-        x = self.relu(x)
-        x = F.normalize(x, dim=1, p=2)
-        identity = x
-
-        x = self.unfold(x)  # b, cuv, h, w
-        x = x.view(b, c, self.kernel_size[0], self.kernel_size[1], h, w)
-        x = x * identity.unsqueeze(2).unsqueeze(2)  # b, c, u, v, h, w * b, c, 1, 1, h, w
-        x = x.permute(0, 1, 4, 5, 2, 3).contiguous()  # b, c, h, w, u, v
-        return x
-    
 class mySelfCorrelationComputation(nn.Module):
     def __init__(self, kernel_size=(5, 5), padding=2):
         super(mySelfCorrelationComputation, self).__init__()
@@ -240,7 +220,7 @@ class mySelfCorrelationComputation(nn.Module):
         self.conv1x1_in = nn.Sequential(nn.Conv2d(planes[0], planes[1], kernel_size=1, bias=False, padding=0),
                                         nn.BatchNorm2d(planes[1]),
                                         nn.ReLU(inplace=True))
-        self.embeddingFea = nn.Sequential(nn.Conv2d(1664, 640,
+        self.embeddingFea = nn.Sequential(nn.Conv2d(7808, 640,
                                                      kernel_size=1, bias=False, padding=0),
                                            nn.BatchNorm2d(640),
                                            nn.ReLU(inplace=True))
