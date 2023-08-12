@@ -3,9 +3,7 @@ import tqdm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from torch.utils.data import DataLoader
-
 from common.meter import Meter
 from common.utils import compute_accuracy, load_model, setup_run, by
 from models.dataloader.samplers import CategoriesSampler
@@ -19,7 +17,7 @@ def evaluate(epoch, model, loader, args=None, set='val'):
     loss_meter = Meter()
     acc_meter = Meter()
 
-    label = torch.arange(args.way).repeat(args.query).cuda()
+    label = torch.arange(args.way).repeat(args.query).flip(dims=[0]).cuda()
 
     k = args.way * args.shot
     tqdm_gen = tqdm.tqdm(loader)
@@ -30,7 +28,7 @@ def evaluate(epoch, model, loader, args=None, set='val'):
             model.module.mode = 'encoder'
             data = model(data)
             data_shot, data_query = data[:k], data[k:]
-            model.module.mode = 'cca'
+            model.module.mode = 'ca'
 
             logits = model((data_shot.unsqueeze(0).repeat(args.num_gpu, 1, 1, 1, 1), data_query))
             loss = F.cross_entropy(logits, label)
