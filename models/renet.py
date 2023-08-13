@@ -2,6 +2,7 @@ from models.resnet import ResNet
 from models.ca import *
 from models.sa import *
 from models.resnet18 import resnet18
+from models.wrn import WRN28
 
 class RENet(nn.Module):
 
@@ -11,7 +12,8 @@ class RENet(nn.Module):
         self.args = args
 
         # self.encoder = ResNet(args=args)
-        self.encoder = resnet18(args=args)
+        # self.encoder = resnet18(args=args)
+        self.encoder = WRN28(args=args)
         self.encoder_dim = 640
         self.fc = nn.Linear(self.encoder_dim, self.args.num_class)
         self.scr_module = self._make_scr_layer()
@@ -83,7 +85,7 @@ class RENet(nn.Module):
         # _____________________________________________________________________________________
         way = spt.shape[0]
         num_qry = qry.shape[0]
-        H_s, W_s, H_q, W_q = 11,11,11,11
+        H_s, W_s, H_q, W_q = 6,6,6,6
         spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
         spt_attended1 = spt_attended1.view(num_qry, way, 640, H_s, W_s)
         qry_attended1 = qry_attended1.view(num_qry, way, 640, H_q, W_q)
