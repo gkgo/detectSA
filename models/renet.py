@@ -12,8 +12,8 @@ class RENet(nn.Module):
         self.args = args
 
         # self.encoder = ResNet(args=args)
-        # self.encoder = resnet18(args=args)
-        self.encoder = WRN28(args=args)
+        self.encoder = resnet18(args=args)
+        # self.encoder = WRN28(args=args)
         self.encoder_dim = 640
         self.fc = nn.Linear(self.encoder_dim, self.args.num_class)
         self.scr_module = self._make_scr_layer()
@@ -61,7 +61,7 @@ class RENet(nn.Module):
         # _________________________________________________________________________________baseline
         way = spt.shape[0]
         num_qry = qry.shape[0]
-        H_s, W_s, H_q, W_q =6,6,6,6
+        H_s, W_s, H_q, W_q =11,11,11,11
         spt_c = F.normalize(spt, p=2, dim=1, eps=1e-8)
         qry_c = F.normalize(qry, p=2, dim=1, eps=1e-8)
         # way , C , H_s , W_s --> num_qry * way, C , H_s , W_s
