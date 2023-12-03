@@ -34,8 +34,8 @@ def setup_run(arg_mode='train'):
         args.num_class = 351
     elif args.dataset == 'cifar_fs':
         args.num_class = 64
-    elif args.dataset == 'cars':
-        args.num_class = 130
+    elif args.dataset == 'mini':
+        args.num_class = 10
     elif args.dataset == 'dogs':
         args.num_class = 70
 
@@ -132,25 +132,25 @@ def parse_args(arg_mode):
     parser = argparse.ArgumentParser(description='Relational Embedding for Few-Shot Classification (ICCV 2021)')
 
     ''' about dataset '''
-    parser.add_argument('-dataset', type=str, default='cub',
-                        choices=['miniimagenet', 'cub', 'tieredimagenet', 'cifar_fs'])
+    parser.add_argument('-dataset', type=str, default='mini',
+                        choices=['miniimagenet', 'cub', 'tieredimagenet', 'cifar_fs','mini'])
     parser.add_argument('-data_dir', type=str, default='datasets', help='dir of datasets')
 
     ''' about training specs '''
-    parser.add_argument('-batch', type=int, default=32, help='auxiliary batch size')
+    parser.add_argument('-batch', type=int, default=64, help='auxiliary batch size')
     parser.add_argument('-temperature', type=float, default=0.20, metavar='tau', help='temperature for metric-based loss')
-    parser.add_argument('-lamb', type=float, default=1.75, metavar='lambda', help='loss balancing term')
+    parser.add_argument('-lamb', type=float, default=0.50, metavar='lambda', help='loss balancing term')
 
     ''' about training schedules '''
-    parser.add_argument('-max_epoch', type=int, default=80, help='max epoch to run')
+    parser.add_argument('-max_epoch', type=int, default=50, help='max epoch to run')
     parser.add_argument('-lr', type=float, default=0.1, help='learning rate')
     parser.add_argument('-gamma', type=float, default=0.05, help='learning rate decay factor')
-    parser.add_argument('-milestones', nargs='+', type=int, default=[60,70], help='milestones for MultiStepLR')
+    parser.add_argument('-milestones', nargs='+', type=int, default=[30,40], help='milestones for MultiStepLR')
     parser.add_argument('-save_all', action='store_true', help='save models on each epoch')
 
     ''' about few-shot episodes '''
     parser.add_argument('-way', type=int, default=5, metavar='N', help='number of few-shot classes')
-    parser.add_argument('-shot', type=int, default=5, metavar='K', help='number of shots')
+    parser.add_argument('-shot', type=int, default=1, metavar='K', help='number of shots')
     parser.add_argument('-query', type=int, default=15, help='number of query image per class')
     parser.add_argument('-val_episode', type=int, default=200, help='number of validation episode')
     parser.add_argument('-test_episode', type=int, default=2000, help='number of testing episodes after training')
