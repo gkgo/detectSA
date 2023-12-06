@@ -122,7 +122,6 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 640, stride=2)
         # self.scr_module = SqueezeExcitation(channel=640)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(640, num_classes)
         self.scr_module1 = mySelfCorrelationComputation(channel=160, kernel_size=(5, 5), padding=2)
         self.scr_module2 = mySelfCorrelationComputation(channel=320, kernel_size=(5, 5), padding=2)
         self.scr_module = mySelfCorrelationComputation(channel=640,kernel_size=(5, 5), padding=2)
@@ -185,17 +184,17 @@ class ResNet(nn.Module):
 
 
         # ___________________________________________________________
-        out2 = F.avg_pool2d(out2, out2.size()[2:])
-        out3 = F.avg_pool2d(out3, out3.size()[2:])
-        out4 = F.avg_pool2d(out4, out4.size()[2:])
+        # out2 = F.avg_pool2d(out2, out2.size()[2:])
+        # out3 = F.avg_pool2d(out3, out3.size()[2:])
+        # out4 = F.avg_pool2d(out4, out4.size()[2:])
 
-        out2 = F.layer_norm(out2, out2.size()[1:])
-        out3 = F.layer_norm(out3, out3.size()[1:])
-        out4 = F.layer_norm(out4, out4.size()[1:])
+        # out2 = F.layer_norm(out2, out2.size()[1:])
+        # out3 = F.layer_norm(out3, out3.size()[1:])
+        # out4 = F.layer_norm(out4, out4.size()[1:])
 
-        out = torch.cat([out4, out3, out2], 1)
-        out = self.conv1x1_out(out)
-        out = self.relu(out)
-        x = self.maxpool(out)
+        # out = torch.cat([out4, out3, out2], 1)
+        # out = self.conv1x1_out(out)
+        x = self.relu(out4)
+        # x = self.maxpool(out)
 
         return x
