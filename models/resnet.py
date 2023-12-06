@@ -61,6 +61,20 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 160, stride=2)
         self.layer3 = self._make_layer(block, 320, stride=2)
         self.layer4 = self._make_layer(block, 640, stride=2)
+        # self.scr_module = SqueezeExcitation(channel=640)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(640, num_classes)
+        self.scr_module0 = mySelfCorrelationComputation(channel=64,kernel_size=(1, 1), padding=0)
+        self.scr_module1 = mySelfCorrelationComputation(channel=160, kernel_size=(1, 1), padding=0)
+        self.scr_module2 = mySelfCorrelationComputation(channel=320, kernel_size=(1, 1), padding=0)
+        self.scr_module = mySelfCorrelationComputation(channel=640,kernel_size=(1, 1), padding=0)
+        self.relu = nn.LeakyReLU(0.1)
+        self.maxpool = nn.MaxPool2d(1)
+        # self.scr_module = cbam_block(channel=640)
+        # self.scr_module = SqueezeExcitation(channel=640)
+        self.conv1x1_out = nn.Sequential(
+            nn.Conv2d(1120, 640, kernel_size=1, bias=False, padding=0),
+            nn.BatchNorm2d(640))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -85,12 +99,47 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.layer1(x)
 
-        x = self.layer2(x)
+        # x = self.layer1(x)
+        # x = self.layer2(x)
+        # x = self.layer3(x)
+        # x = self.layer4(x)
+        # id = x
+        # x = self.scr_module(x)
+        # x = id + x
+#____________________________________________________
+        out1 = self.layer1(x)
+        out1_s = self.scr_module0(out1)
+        out1 = out1 + out1_s
 
-        x = self.layer3(x)
 
-        x = self.layer4(x)
+        out2 = self.layer2(out1)
+        out2_s = self.scr_module1(out2)
+        out2 = out2 + out2_s
+
+
+        out3 = self.layer3(out2)
+        out3_s = self.scr_module2(out3)
+        out3 = out3 + out3_s
+
+
+        out4 = self.layer4(out3)
+        out4_s = self.scr_module(out4)
+        out4 = out4 + out4_s
+
+
+        # ___________________________________________________________
+        out2 = F.avg_pool2d(out2, out2.size()[2:])
+        out3 = F.avg_pool2d(out3, out3.size()[2:])
+        out4 = F.avg_pool2d(out4, out4.size()[2:])
+
+        out2 = F.layer_norm(out2, out2.size()[1:])
+        out3 = F.layer_norm(out3, out3.size()[1:])
+        out4 = F.layer_norm(out4, out4.size()[1:])
+
+        out = torch.cat([out4, out3, out2], 1)
+        out = self.conv1x1_out(out)
+        out = self.relu(out)
+        x = self.maxpool(out)
 
         return x
