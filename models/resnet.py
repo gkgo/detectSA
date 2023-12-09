@@ -179,8 +179,8 @@ class ResNet(nn.Module):
 
 
         out4 = self.layer4(out3)
-        out4_s = self.scr_module(out4)
-        out4 = out4 + out4_s
+        # out4_s = self.scr_module(out4)
+        # out4 = out4 + out4_s
 
 
         # ___________________________________________________________
@@ -194,7 +194,7 @@ class ResNet(nn.Module):
 
         # out = torch.cat([out4, out3, out2], 1)
         # out = self.conv1x1_out(out)
-        x = self.relu(out4)
+        # x = self.relu(out4)
         # x = self.maxpool(out)
 
-        return x
+        return out4
