@@ -9,8 +9,8 @@ import numpy as np
 class MiniImageNet(Dataset):
 
     def __init__(self, setname, args, return_path=False):
-        IMAGE_PATH = os.path.join(args.data_dir, 'mini/images')
-        SPLIT_PATH = os.path.join(args.data_dir, 'mini/split')
+        IMAGE_PATH = os.path.join(args.data_dir, 'mini123/images')
+        SPLIT_PATH = os.path.join(args.data_dir, 'mini123/split')
 
         csv_path = osp.join(SPLIT_PATH, setname + '.csv')
         lines = [x.strip() for x in open(csv_path, 'r').readlines()][1:]
