@@ -144,10 +144,10 @@ class RENet(nn.Module):
         x = self.encoder(x)
 
         if self.args.self_method:
-            identity = x  # (80,640,5,5)
-            x = self.scr_module(x)
-            if self.args.self_method == 'sa':
-                x = x + identity
+            # identity = x  # (80,640,5,5)
+            # x = self.scr_module(x)
+            # if self.args.self_method == 'sa':
+            #     x = x + identity
             x = F.relu(x, inplace=True)
 
         if do_gap:
