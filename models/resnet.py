@@ -169,8 +169,8 @@ class ResNet(nn.Module):
 
 
         out2 = self.layer2(out1)
-        out2_s = self.scr_module1(out2)
-        out2 = out2 + out2_s
+        # out2_s = self.scr_module1(out2)
+        # out2 = out2 + out2_s
 
 
         out3 = self.layer3(out2)
