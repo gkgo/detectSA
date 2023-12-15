@@ -143,12 +143,12 @@ class RENet(nn.Module):
     def encode(self, x, do_gap=True):
         x = self.encoder(x)
 
-        # if self.args.self_method:
-        #     identity = x  # (80,640,5,5)
-        #     x = self.scr_module(x)
-        #     if self.args.self_method == 'sa':
-        #         x = x + identity
-        #     x = F.relu(x, inplace=True)
+        if self.args.self_method:
+            identity = x  # (80,640,5,5)
+            x = self.scr_module(x)
+            if self.args.self_method == 'sa':
+                x = x + identity
+            x = F.relu(x, inplace=True)
 
         if do_gap:
             return F.adaptive_avg_pool2d(x, 1)
