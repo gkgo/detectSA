@@ -49,7 +49,7 @@ def test_main(model, args):
     ''' define test dataset '''
     Dataset = dataset_builder(args)
     test_set = Dataset('test', args)
-    sampler = CategoriesSampler(test_set.label, args.test_episode, args.way,args.shot,args.shot + args.query)
+    sampler = CategoriesSampler(test_set.label, args.test_episode, args.way,args.shot + args.query)
     test_loader = DataLoader(test_set, batch_sampler=sampler, num_workers=4, pin_memory=True)
 
     ''' evaluate the model with the dataset '''
