@@ -4,10 +4,9 @@ import numpy as np
 
 class CategoriesSampler():
 
-    def __init__(self, label, n_batch, n_cls, shot, n_per):
+    def __init__(self, label, n_batch, n_cls, n_per):
         self.n_batch = n_batch  # the number of iterations in the dataloader
         self.n_cls = n_cls
-        self.n_shot = shot * n_cls
         self.n_per = n_per
 
         label = np.array(label)  # all data label
@@ -19,7 +18,7 @@ class CategoriesSampler():
 
     def __len__(self):
         return self.n_batch
-
+    
     def __iter__(self):
         for i_batch in range(self.n_batch):
             batch = []
@@ -29,12 +28,7 @@ class CategoriesSampler():
                 pos = torch.randperm(len(l))[:self.n_per]  # sample n_per data index of this class
                 batch.append(l[pos])
             batch = torch.stack(batch).t().reshape(-1)
-            batch1 = batch[0:self.n_shot]
-            batch2 = batch[self.n_shot:]
-            x = batch2.flip(dims=[0])
-            batch = torch.cat((batch1, x), dim=0)
             # .t() transpose,
             # due to it, the label is in the sequence of abcdabcdabcd form after reshape,
             # instead of aaaabbbbccccdddd
             yield batch
-
