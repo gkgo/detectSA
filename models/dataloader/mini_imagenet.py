@@ -46,16 +46,14 @@ class MiniImageNet(Dataset):
                 transforms.CenterCrop(image_size),
 
                 transforms.ToTensor(),
-                transforms.Normalize(np.array([x / 255.0 for x in [125.3, 123.0, 113.9]]),
-                                     np.array([x / 255.0 for x in [63.0, 62.1, 66.7]]))])
+                transforms.Normalize((0.4519, 0.4519, 0.4519), (0.0695, 0.0695, 0.0695))])
         elif setname == 'train':
             image_size = 84
             self.transform = transforms.Compose([
                 transforms.RandomResizedCrop(image_size),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize(np.array([x / 255.0 for x in [125.3, 123.0, 113.9]]),
-                                     np.array([x / 255.0 for x in [63.0, 62.1, 66.7]]))])
+                transforms.Normalize((0.4519, 0.4519, 0.4519), (0.0695, 0.0695, 0.0695))])
 
     def __len__(self):
         return len(self.data)
