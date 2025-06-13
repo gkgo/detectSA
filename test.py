@@ -13,9 +13,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 from sklearn.preprocessing import label_binarize
+import csv
 
 
-def plot_roc_curve(y_true, y_score, save_path, filename='roc_curve_test.png'):
+def plot_roc_curve(y_true, y_score, save_path, 
+                   filename='roc_curve_test.png', csv_filename='roc_data.csv'):
     y_score = np.array(y_score)
     y_true = np.array(y_true)
     n_classes = y_score.shape[1]
@@ -24,6 +26,17 @@ def plot_roc_curve(y_true, y_score, save_path, filename='roc_curve_test.png'):
     fpr, tpr, _ = roc_curve(y_true_bin.ravel(), y_score.ravel())
     roc_auc = auc(fpr, tpr)
 
+    # 保存FPR、TPR和AUC到CSV
+    csv_path = os.path.join(save_path, csv_filename)
+    with open(csv_path, mode='w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['False Positive Rate', 'True Positive Rate'])
+        for fp, tp in zip(fpr, tpr):
+            writer.writerow([fp, tp])
+        writer.writerow([])
+        writer.writerow(['AUC', roc_auc])
+
+    # 绘制ROC曲线
     plt.figure()
     plt.plot(fpr, tpr, color='darkorange', lw=2,
              label='Micro-average ROC (AUC = %0.4f)' % roc_auc)
@@ -63,6 +76,7 @@ def evaluate(epoch, model, loader, args=None, set='val', plot_roc=False):
             loss_meter.update(loss.item())
             acc_meter.update(acc)
             tqdm_gen.set_description(f'[{set:^5}] epo:{epoch:>3} | avg.loss:{loss_meter.avg():.4f} | avg.acc:{by(acc_meter.avg())} (curr:{acc:.3f})')
+
             if plot_roc:
                 all_logits.append(F.softmax(logits, dim=1).cpu())
                 all_labels.append(label.cpu())
