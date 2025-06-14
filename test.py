@@ -16,39 +16,70 @@ from sklearn.preprocessing import label_binarize
 import csv
 
 
-def plot_roc_curve(y_true, y_score, save_path, 
-                   filename='roc_curve_test.png', csv_filename='roc_data.csv'):
-    y_score = np.array(y_score)
+def plot_roc_curves(y_true, y_score, save_path,
+                    micro_filename='roc_micro.png',
+                    per_class_filename='roc_per_class.png',
+                    csv_filename='roc_data.csv'):
     y_true = np.array(y_true)
+    y_score = np.array(y_score)
     n_classes = y_score.shape[1]
     y_true_bin = label_binarize(y_true, classes=np.arange(n_classes))
 
-    fpr, tpr, _ = roc_curve(y_true_bin.ravel(), y_score.ravel())
-    roc_auc = auc(fpr, tpr)
-
-    # 保存FPR、TPR和AUC到CSV
-    csv_path = os.path.join(save_path, csv_filename)
-    with open(csv_path, mode='w', newline='') as f:
+    # ========== Save CSV ==========
+    with open(os.path.join(save_path, csv_filename), mode='w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['False Positive Rate', 'True Positive Rate'])
-        for fp, tp in zip(fpr, tpr):
-            writer.writerow([fp, tp])
-        writer.writerow([])
-        writer.writerow(['AUC', roc_auc])
+        writer.writerow(['Class', 'FPR', 'TPR', 'AUC'])
 
-    # 绘制ROC曲线
+        # Per-class ROC
+        fpr_dict = {}
+        tpr_dict = {}
+        auc_dict = {}
+
+        for i in range(n_classes):
+            fpr_dict[i], tpr_dict[i], _ = roc_curve(y_true_bin[:, i], y_score[:, i])
+            auc_dict[i] = auc(fpr_dict[i], tpr_dict[i])
+            for f, t in zip(fpr_dict[i], tpr_dict[i]):
+                writer.writerow([i, f, t, auc_dict[i]])
+            writer.writerow([])
+
+    # ========== Plot micro-average ROC ==========
+    fpr_micro, tpr_micro, _ = roc_curve(y_true_bin.ravel(), y_score.ravel())
+    auc_micro = auc(fpr_micro, tpr_micro)
+
     plt.figure()
-    plt.plot(fpr, tpr, color='darkorange', lw=2,
-             label='Micro-average ROC (AUC = %0.4f)' % roc_auc)
-    plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
-    plt.xlim([-0.01, 1.01])
-    plt.ylim([-0.01, 1.01])
+    plt.plot(fpr_micro, tpr_micro, color='darkorange',
+             lw=2, label=f'Micro-average ROC (AUC = {auc_micro:.4f})')
+    plt.plot([0, 1], [0, 1], color='navy', linestyle='--', lw=1)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.title('Micro-Averaged ROC Curve')
     plt.legend(loc="lower right")
     plt.grid(True)
-    plt.savefig(os.path.join(save_path, filename))
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_path, micro_filename))
+    plt.close()
+
+    # ========== Plot per-class ROC in one figure ==========
+    plt.figure(figsize=(8, 6))
+    colors = plt.cm.get_cmap('tab10', n_classes)
+
+    for i in range(n_classes):
+        plt.plot(fpr_dict[i], tpr_dict[i],
+                 lw=2, label=f'Class {i} (AUC = {auc_dict[i]:.4f})',
+                 color=colors(i))
+
+    plt.plot([0, 1], [0, 1], color='gray', linestyle='--', lw=1)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Per-Class ROC Curves')
+    plt.legend(loc="lower right", fontsize='small')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_path, per_class_filename))
     plt.close()
 
 
@@ -84,7 +115,7 @@ def evaluate(epoch, model, loader, args=None, set='val', plot_roc=False):
     if plot_roc:
         all_logits = torch.cat(all_logits, dim=0).numpy()
         all_labels = torch.cat(all_labels, dim=0).numpy()
-        plot_roc_curve(all_labels, all_logits, args.save_path)
+        plot_roc_curves(all_labels, all_logits, args.save_path)
 
     return loss_meter.avg(), acc_meter.avg(), acc_meter.confidence_interval()
 
@@ -98,7 +129,6 @@ def test_main(model, args):
 
     _, test_acc, test_ci = evaluate("best", model, test_loader, args, set='test', plot_roc=True)
     print(f'[final] epo:{"best":>3} | {by(test_acc)} +- {test_ci:.3f}')
-
     return test_acc, test_ci
 
 
