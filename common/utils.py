@@ -137,7 +137,7 @@ def parse_args(arg_mode):
     parser.add_argument('-data_dir', type=str, default='datasets', help='dir of datasets')
 
     ''' about training specs '''
-    parser.add_argument('-batch', type=int, default=8, help='auxiliary batch size')
+    parser.add_argument('-batch', type=int, default=1, help='auxiliary batch size')
     parser.add_argument('-temperature', type=float, default=0.20, metavar='tau', help='temperature for metric-based loss')
     parser.add_argument('-lamb', type=float, default=0.50, metavar='lambda', help='loss balancing term')
 
