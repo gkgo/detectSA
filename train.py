@@ -14,13 +14,66 @@ from models.renet import RENet
 from test import test_main, evaluate
 
 
-from ptflops import get_model_complexity_info  # ✅ 新增
+def train(epoch, model, loader, optimizer, args=None):
+    model.train()
+
+    train_loader = loader['train_loader']
+    train_loader_aux = loader['train_loader_aux']
+
+    # label for query set, always in the same pattern
+    # label = torch.arange(args.way).repeat(args.query).flip(dims=[0]).cuda()  # 432104321043210....
+    label = torch.arange(args.way).repeat(args.query).cuda()
+
+
+    loss_meter = Meter()
+    acc_meter = Meter()
+
+    k = args.way * args.shot
+    tqdm_gen = tqdm.tqdm(train_loader)
+
+    for i, ((data, train_labels), (data_aux, train_labels_aux)) in enumerate(zip(tqdm_gen, train_loader_aux), 1):
+
+        data, train_labels = data.cuda(), train_labels.cuda()
+        data_aux, train_labels_aux = data_aux.cuda(), train_labels_aux.cuda()
+
+        # Forward images (3, 84, 84) -> (C, H, W)
+        model.module.mode = 'encoder'
+        data = model(data)
+        data_aux = model(data_aux)  # I prefer to separate feed-forwarding data and data_aux due to BN
+
+        # loss for batch
+        model.module.mode = 'ca'
+        data_shot, data_query = data[:k], data[k:]
+        logits, absolute_logits = model((data_shot.unsqueeze(0).repeat(args.num_gpu, 1, 1, 1, 1), data_query))
+        epi_loss = F.cross_entropy(logits, label)
+        absolute_loss = F.cross_entropy(absolute_logits, train_labels[k:])
+
+        # loss for auxiliary batch
+        model.module.mode = 'fc'
+        logits_aux = model(data_aux)
+        loss_aux = F.cross_entropy(logits_aux, train_labels_aux)
+        loss_aux = loss_aux + absolute_loss
+
+        loss = args.lamb * epi_loss + loss_aux
+        acc = compute_accuracy(logits, label)
+
+        loss_meter.update(loss.item())
+        acc_meter.update(acc)
+        tqdm_gen.set_description(f'[train] epo:{epoch:>3} | avg.loss:{loss_meter.avg():.4f} | avg.acc:{acc_meter.avg():.3f} (curr:{acc:.3f})')
+
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 2.0)
+        optimizer.step()
+        optimizer.zero_grad()
+
+    return loss_meter.avg(), acc_meter.avg(), acc_meter.confidence_interval()
+
 
 def train_main(args):
     Dataset = dataset_builder(args)
 
     trainset = Dataset('train', args)
-    train_sampler = CategoriesSampler(trainset.label, len(trainset.data) // args.batch, args.way, args.shot + args.query)
+    train_sampler = CategoriesSampler(trainset.label, len(trainset.data) // args.batch, args.way,args.shot + args.query)
     train_loader = DataLoader(dataset=trainset, batch_sampler=train_sampler, num_workers=4, pin_memory=True)
 
     trainset_aux = Dataset('train', args)
@@ -29,23 +82,13 @@ def train_main(args):
     train_loaders = {'train_loader': train_loader, 'train_loader_aux': train_loader_aux}
 
     valset = Dataset('val', args)
-    val_sampler = CategoriesSampler(valset.label, args.val_episode, args.way, args.shot + args.query)
+    val_sampler = CategoriesSampler(valset.label, args.val_episode, args.way,args.shot + args.query)
     val_loader = DataLoader(dataset=valset, batch_sampler=val_sampler, num_workers=4, pin_memory=True)
+    ''' fix val set for all epochs '''
     val_loader = [x for x in val_loader]
 
     set_seed(args.seed)
     model = RENet(args).cuda()
-
-    # ✅ 模型复杂度统计（注意：不要用 DataParallel 包裹）
-    print("===== Model Complexity Summary =====")
-    with torch.cuda.device(0):
-        flops, params = get_model_complexity_info(model, (3, 84, 84), as_strings=True, print_per_layer_stat=False)
-        print(f'FLOPs: {flops}')
-        print(f'Params: {params}')
-        if not args.no_wandb:
-            wandb.log({'model/FLOPs': flops, 'model/Params': params})
-
-    # ✅ 再包裹 DataParallel（用于实际训练）
     model = nn.DataParallel(model, device_ids=args.device_ids)
 
     if not args.no_wandb:
