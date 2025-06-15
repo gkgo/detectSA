@@ -6,8 +6,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+
+# 安装 ptflops 用于参数量和FLOPs计算（如未安装）
+os.system("pip install -q ptflops")
+
 from common.meter import Meter
-from common.utils import  compute_accuracy, set_seed, setup_run
+from common.utils import compute_accuracy, set_seed, setup_run
 from models.dataloader.samplers import CategoriesSampler
 from models.dataloader.data_utils import dataset_builder
 from models.renet import RENet
@@ -20,10 +24,7 @@ def train(epoch, model, loader, optimizer, args=None):
     train_loader = loader['train_loader']
     train_loader_aux = loader['train_loader_aux']
 
-    # label for query set, always in the same pattern
-    # label = torch.arange(args.way).repeat(args.query).flip(dims=[0]).cuda()  # 432104321043210....
     label = torch.arange(args.way).repeat(args.query).cuda()
-
 
     loss_meter = Meter()
     acc_meter = Meter()
@@ -32,23 +33,19 @@ def train(epoch, model, loader, optimizer, args=None):
     tqdm_gen = tqdm.tqdm(train_loader)
 
     for i, ((data, train_labels), (data_aux, train_labels_aux)) in enumerate(zip(tqdm_gen, train_loader_aux), 1):
-
         data, train_labels = data.cuda(), train_labels.cuda()
         data_aux, train_labels_aux = data_aux.cuda(), train_labels_aux.cuda()
 
-        # Forward images (3, 84, 84) -> (C, H, W)
         model.module.mode = 'encoder'
         data = model(data)
-        data_aux = model(data_aux)  # I prefer to separate feed-forwarding data and data_aux due to BN
+        data_aux = model(data_aux)
 
-        # loss for batch
         model.module.mode = 'ca'
         data_shot, data_query = data[:k], data[k:]
         logits, absolute_logits = model((data_shot.unsqueeze(0).repeat(args.num_gpu, 1, 1, 1, 1), data_query))
         epi_loss = F.cross_entropy(logits, label)
         absolute_loss = F.cross_entropy(absolute_logits, train_labels[k:])
 
-        # loss for auxiliary batch
         model.module.mode = 'fc'
         logits_aux = model(data_aux)
         loss_aux = F.cross_entropy(logits_aux, train_labels_aux)
@@ -70,10 +67,12 @@ def train(epoch, model, loader, optimizer, args=None):
 
 
 def train_main(args):
+    from ptflops import get_model_complexity_info
+
     Dataset = dataset_builder(args)
 
     trainset = Dataset('train', args)
-    train_sampler = CategoriesSampler(trainset.label, len(trainset.data) // args.batch, args.way,args.shot + args.query)
+    train_sampler = CategoriesSampler(trainset.label, len(trainset.data) // args.batch, args.way, args.shot + args.query)
     train_loader = DataLoader(dataset=trainset, batch_sampler=train_sampler, num_workers=4, pin_memory=True)
 
     trainset_aux = Dataset('train', args)
@@ -82,9 +81,8 @@ def train_main(args):
     train_loaders = {'train_loader': train_loader, 'train_loader_aux': train_loader_aux}
 
     valset = Dataset('val', args)
-    val_sampler = CategoriesSampler(valset.label, args.val_episode, args.way,args.shot + args.query)
+    val_sampler = CategoriesSampler(valset.label, args.val_episode, args.way, args.shot + args.query)
     val_loader = DataLoader(dataset=valset, batch_sampler=val_sampler, num_workers=4, pin_memory=True)
-    ''' fix val set for all epochs '''
     val_loader = [x for x in val_loader]
 
     set_seed(args.seed)
@@ -93,7 +91,20 @@ def train_main(args):
 
     if not args.no_wandb:
         wandb.watch(model)
+
     print(model)
+
+    # ---------------------- 统计 Params 和 FLOPs ----------------------
+    model.module.mode = 'encoder'
+    with torch.cuda.device(0):
+        macs, params = get_model_complexity_info(
+            model.module, (3, 84, 84), as_strings=True,
+            print_per_layer_stat=False, verbose=False
+        )
+        print(f'[Model Complexity] FLOPs: {macs} | Params: {params}')
+        if not args.no_wandb:
+            wandb.log({'model/FLOPs': macs, 'model/Params': params})
+    # -----------------------------------------------------------------
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True, weight_decay=0.0005)
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)
@@ -131,9 +142,7 @@ def train_main(args):
 
 if __name__ == '__main__':
     args = setup_run(arg_mode='train')
-
     model = train_main(args)
     test_acc, test_ci = test_main(model, args)
-
     if not args.no_wandb:
         wandb.log({'test/acc': test_acc, 'test/confidence_interval': test_ci})
