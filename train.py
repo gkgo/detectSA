@@ -1,133 +1,158 @@
-import os
-import tqdm
-import time
-import wandb
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from common.meter import Meter
-from common.utils import compute_accuracy, set_seed, setup_run
-from models.dataloader.samplers import CategoriesSampler
-from models.dataloader.data_utils import dataset_builder
-from models.renet import RENet
-from test import test_main, evaluate
+from models.resnet import ResNet
+from models.ca import *
+from models.sa import *
+from models.resnet18 import resnet18
+from models.wrn import WRN28
+from models.conv4 import ConvNet4
+
+class RENet(nn.Module):
+
+    def __init__(self, args, mode=None):
+        super().__init__()
+        self.mode = mode
+        self.args = args
+
+        self.encoder = ResNet(args=args)
+        # self.encoder = ConvNet4(args=args)
+        # self.encoder = resnet18(args=args)
+        # self.encoder = WRN28(args=args)
+        self.encoder_dim = 640
+        self.fc = nn.Linear(self.encoder_dim, self.args.num_class)
+        self.scr_module = self._make_scr_layer()
+        self.match_net = match_block(640)
+        self.cca_1x1 = nn.Sequential(
+            nn.Conv2d(self.encoder_dim, 64, kernel_size=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU()
+        )
+
+    def _make_scr_layer(self):
+        kernel_size, padding = (5, 5), 2
+        layers = list()
+
+        if self.args.self_method == 'sa':
+            corr_block = mySelfCorrelationComputation(kernel_size=kernel_size, padding=padding)
+        else:
+            raise NotImplementedError
+
+        if self.args.self_method == 'sa':
+            layers.append(corr_block)
+        return nn.Sequential(*layers)
+
+    def forward(self, input):
+        if self.mode == 'fc':
+            return self.fc_forward(input)
+        elif self.mode == 'encoder':
+            return self.encode(input, False)
+        elif self.mode == 'ca':
+            spt, qry = input
+            return self.ca(spt, qry)
+        else:
+            raise ValueError('Unknown mode')
+
+    def fc_forward(self, x):
+        x = x.mean(dim=[-1, -2])
+        return self.fc(x)
+
+    def ca(self, spt, qry):  # 支持，查询
+
+        spt = spt.squeeze(0)  # 移除数组中维度为1的维度
+
+        spt = self.normalize_feature(spt)  # 1
+        qry = self.normalize_feature(qry)
+        # _________________________________________________________________________________baseline
+        way = spt.shape[0]
+        num_qry = qry.shape[0]
+        H_s, W_s, H_q, W_q =5,5,5,5
+        spt_c = F.normalize(spt, p=2, dim=1, eps=1e-8)
+        qry_c = F.normalize(qry, p=2, dim=1, eps=1e-8)
+        # way , C , H_s , W_s --> num_qry * way, C , H_s , W_s
+        # num_qry , C , H_q , W_q --> num_qry * way,C ,H_q , W_q
+        spt_c = spt_c.unsqueeze(0).repeat(num_qry, 1, 1, 1, 1)
+        qry_c = qry_c.unsqueeze(1).repeat(1, way, 1, 1, 1)
+        d_s = spt_c.view(num_qry, way,640,H_s*W_s)  # 10，5，25，5，5
+        d_q = qry_c.view(num_qry, way,640,H_q*W_q)  # 10，5，5，5，25
+        d_s = self.gaussian_normalize(d_s, dim=3)
+        d_q = self.gaussian_normalize(d_q, dim=3)
+        
+        # applying softmax for each side
+        d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
+        d_s = d_s.view(num_qry, way,640,H_s, W_s)  # 10，5，5，5，5，5
+        d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
+        d_q = d_q.view(num_qry, way,640,H_q, W_q)  # 10，5，5，5，5，5
+        
+        spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
+        qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
+
+        # _____________________________________________________________________________________
+        # way = spt.shape[0]
+        # num_qry = qry.shape[0]
+        # H_s, W_s, H_q, W_q = 6,6,6,6
+        # spt_attended1, qry_attended1 = self.match_net(spt, qry)  # 先 Channel
+        # spt_attended1 = spt_attended1.view(num_qry, way, 640, H_s, W_s)
+        # qry_attended1 = qry_attended1.view(num_qry, way, 640, H_q, W_q)
+
+        # spt_attended1 = F.relu(spt_attended1, inplace=True)
+        # qry_attended1 = F.relu(qry_attended1, inplace=True)
+
+        # d_s = spt_attended1.view(num_qry, way, 640, H_s * W_s)  # 10，5，25，5，5
+        # d_q = qry_attended1.view(num_qry, way, 640, H_q * W_q)  # 10，5，5，5，25
+
+        # # normalizing the entities for each side to be zero-mean and unit-variance to stabilize training
+        # d_s = self.gaussian_normalize(d_s, dim=3)
+        # d_q = self.gaussian_normalize(d_q, dim=3)
+
+        # # applying softmax for each side
+        # d_s = F.softmax(d_s / self.args.temperature_attn, dim=3)
+        # d_s = d_s.view(num_qry, way, 640, H_s, W_s)  # 10，5，5，5，5，5
+        # d_q = F.softmax(d_q / self.args.temperature_attn, dim=3)
+        # d_q = d_q.view(num_qry, way, 640, H_q, W_q)  # 10，5，5，5，5，5
+
+        # spt_attended = d_s * spt.unsqueeze(0)  # 10，5，640，5，5
+        # qry_attended = d_q * qry.unsqueeze(1)  # 10，5，640，5，5
+
+        # averaging embeddings for k > 1 shots
+        if self.args.shot > 1:
+            spt_attended = spt_attended.view(num_qry, self.args.shot, self.args.way, *spt_attended.shape[2:])
+            qry_attended = qry_attended.view(num_qry, self.args.shot, self.args.way, *qry_attended.shape[2:])
+            spt_attended = spt_attended.mean(dim=1)
+            qry_attended = qry_attended.mean(dim=1)
+
+        # In the main paper, we present averaging in Eq.(4) and summation in Eq.(5).
+        # In the implementation, the order is reversed, however, those two ways become eventually the same anyway :)
+        spt_attended_pooled = spt_attended.mean(dim=[-1, -2])
+        qry_attended_pooled = qry_attended.mean(dim=[-1, -2])
+        qry_pooled = qry.mean(dim=[-1, -2])
+        similarity_matrix = F.cosine_similarity(spt_attended_pooled, qry_attended_pooled, dim=-1)
+
+        if self.training:
+            return similarity_matrix / self.args.temperature, self.fc(qry_pooled)
+        else:
+            return similarity_matrix / self.args.temperature
+
+# ----------------------------------------------------------------------------------
+    def gaussian_normalize(self, x, dim, eps=1e-05):
+        x_mean = torch.mean(x, dim=dim, keepdim=True)
+        x_var = torch.var(x, dim=dim, keepdim=True)  # 求dim上的方差
+        x = torch.div(x - x_mean, torch.sqrt(x_var + eps))  # （x原始-x平均）/根号下x_var
+        return x
+
+    def normalize_feature(self, x):
+        return x - x.mean(1).unsqueeze(1)  # x-x.mean(1)行求平均值并在channal维上增加一个维度
+
+    def encode(self, x, do_gap=True):
+        x = self.encoder(x)
+
+        if self.args.self_method:
+            identity = x  # (80,640,5,5)
+            x = self.scr_module(x)
+            if self.args.self_method == 'sa':
+                x = x + identity
+            x = F.relu(x, inplace=True)
+
+        if do_gap:
+            return F.adaptive_avg_pool2d(x, 1)
+        else:
+            return x
 
 
-def train(epoch, model, loader, optimizer, args=None):
-    model.train()
-
-    train_loader = loader['train_loader']
-    train_loader_aux = loader['train_loader_aux']
-
-    label = torch.arange(args.way).repeat(args.query).cuda()
-
-    loss_meter = Meter()
-    acc_meter = Meter()
-
-    k = args.way * args.shot
-    tqdm_gen = tqdm.tqdm(train_loader)
-
-    for i, ((data, train_labels), (data_aux, train_labels_aux)) in enumerate(zip(tqdm_gen, train_loader_aux), 1):
-        data, train_labels = data.cuda(), train_labels.cuda()
-        data_aux, train_labels_aux = data_aux.cuda(), train_labels_aux.cuda()
-
-        model.module.mode = 'encoder'
-        data = model(data)
-        data_aux = model(data_aux)
-
-        model.module.mode = 'ca'
-        data_shot, data_query = data[:k], data[k:]
-        logits, absolute_logits = model((data_shot.unsqueeze(0).repeat(args.num_gpu, 1, 1, 1, 1), data_query))
-        epi_loss = F.cross_entropy(logits, label)
-        absolute_loss = F.cross_entropy(absolute_logits, train_labels[k:])
-
-        model.module.mode = 'fc'
-        logits_aux = model(data_aux)
-        loss_aux = F.cross_entropy(logits_aux, train_labels_aux)
-        loss_aux = loss_aux + absolute_loss
-
-        loss = args.lamb * epi_loss + loss_aux
-        acc = compute_accuracy(logits, label)
-
-        loss_meter.update(loss.item())
-        acc_meter.update(acc)
-        tqdm_gen.set_description(f'[train] epo:{epoch:>3} | avg.loss:{loss_meter.avg():.4f} | avg.acc:{acc_meter.avg():.3f} (curr:{acc:.3f})')
-
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 2.0)
-        optimizer.step()
-        optimizer.zero_grad()
-
-    return loss_meter.avg(), acc_meter.avg(), acc_meter.confidence_interval()
-
-
-def train_main(args):
-    from ptflops import get_model_complexity_info
-
-    Dataset = dataset_builder(args)
-
-    trainset = Dataset('train', args)
-    train_sampler = CategoriesSampler(trainset.label, len(trainset.data) // args.batch, args.way, args.shot + args.query)
-    train_loader = DataLoader(dataset=trainset, batch_sampler=train_sampler, num_workers=4, pin_memory=True)
-
-    trainset_aux = Dataset('train', args)
-    train_loader_aux = DataLoader(dataset=trainset_aux, batch_size=args.batch, shuffle=True, num_workers=4, pin_memory=True)
-
-    train_loaders = {'train_loader': train_loader, 'train_loader_aux': train_loader_aux}
-
-    valset = Dataset('val', args)
-    val_sampler = CategoriesSampler(valset.label, args.val_episode, args.way, args.shot + args.query)
-    val_loader = DataLoader(dataset=valset, batch_sampler=val_sampler, num_workers=4, pin_memory=True)
-    val_loader = [x for x in val_loader]
-
-    set_seed(args.seed)
-    model = RENet(args).cuda()
-    model = nn.DataParallel(model, device_ids=args.device_ids)
-
-    if not args.no_wandb:
-        wandb.watch(model)
-
-    print(model)
-
-
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True, weight_decay=0.0005)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)
-
-    max_acc, max_epoch = 0.0, 0
-    set_seed(args.seed)
-
-    for epoch in range(1, args.max_epoch + 1):
-        start_time = time.time()
-
-        train_loss, train_acc, _ = train(epoch, model, train_loaders, optimizer, args)
-        val_loss, val_acc, _ = evaluate(epoch, model, val_loader, args, set='val')
-
-        if not args.no_wandb:
-            wandb.log({'train/loss': train_loss, 'train/acc': train_acc, 'val/loss': val_loss, 'val/acc': val_acc}, step=epoch)
-
-        if val_acc > max_acc:
-            print(f'[ log ] *********A better model is found ({val_acc:.3f}) *********')
-            max_acc, max_epoch = val_acc, epoch
-            torch.save(dict(params=model.state_dict(), epoch=epoch), os.path.join(args.save_path, 'max_acc.pth'))
-            torch.save(optimizer.state_dict(), os.path.join(args.save_path, 'optimizer_max_acc.pth'))
-
-        if args.save_all:
-            torch.save(dict(params=model.state_dict(), epoch=epoch), os.path.join(args.save_path, f'epoch_{epoch}.pth'))
-            torch.save(optimizer.state_dict(), os.path.join(args.save_path, f'optimizer_epoch_{epoch}.pth'))
-
-        epoch_time = time.time() - start_time
-        print(f'[ log ] saving @ {args.save_path}')
-        print(f'[ log ] roughly {(args.max_epoch - epoch) / 3600. * epoch_time:.2f} h left\n')
-
-        lr_scheduler.step()
-
-    return model
-
-
-if __name__ == '__main__':
-    args = setup_run(arg_mode='train')
-    model = train_main(args)
-    test_acc, test_ci = test_main(model, args)
-    if not args.no_wandb:
-        wandb.log({'test/acc': test_acc, 'test/confidence_interval': test_ci})
