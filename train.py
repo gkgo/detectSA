@@ -6,10 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-
-# 安装 ptflops 用于参数量和FLOPs计算（如未安装）
-os.system("pip install -q ptflops")
-
 from common.meter import Meter
 from common.utils import compute_accuracy, set_seed, setup_run
 from models.dataloader.samplers import CategoriesSampler
@@ -94,17 +90,6 @@ def train_main(args):
 
     print(model)
 
-    # ---------------------- 统计 Params 和 FLOPs ----------------------
-    model.module.mode = 'encoder'
-    with torch.cuda.device(0):
-        macs, params = get_model_complexity_info(
-            model.module, (3, 84, 84), as_strings=True,
-            print_per_layer_stat=False, verbose=False
-        )
-        print(f'[Model Complexity] FLOPs: {macs} | Params: {params}')
-        if not args.no_wandb:
-            wandb.log({'model/FLOPs': macs, 'model/Params': params})
-    # -----------------------------------------------------------------
 
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True, weight_decay=0.0005)
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)
