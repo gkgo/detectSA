@@ -13,6 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 from sklearn.preprocessing import label_binarize
+from sklearn.metrics import precision_recall_fscore_support
 
 
 def plot_roc_curve(y_true, y_score, save_path, filename='roc_curve_test.png'):
@@ -49,6 +50,7 @@ def evaluate(epoch, model, loader, args=None, set='val', plot_roc=False):
 
     all_logits = []
     all_labels = []
+    all_preds = []
 
     with torch.no_grad():
         for i, (data, _) in enumerate(tqdm_gen, 1):
@@ -58,21 +60,34 @@ def evaluate(epoch, model, loader, args=None, set='val', plot_roc=False):
             data_shot, data_query = data[:k], data[k:]
             model.module.mode = 'ca'
             logits = model((data_shot.unsqueeze(0).repeat(args.num_gpu, 1, 1, 1, 1), data_query))
+
             loss = F.cross_entropy(logits, label)
             acc = compute_accuracy(logits, label)
+
             loss_meter.update(loss.item())
             acc_meter.update(acc)
             tqdm_gen.set_description(f'[{set:^5}] epo:{epoch:>3} | avg.loss:{loss_meter.avg():.4f} | avg.acc:{by(acc_meter.avg())} (curr:{acc:.3f})')
+
             if plot_roc:
                 all_logits.append(F.softmax(logits, dim=1).cpu())
                 all_labels.append(label.cpu())
+                all_preds.append(torch.argmax(logits, dim=1).cpu())
 
+    # Compute ROC curve + metrics
     if plot_roc:
         all_logits = torch.cat(all_logits, dim=0).numpy()
-        all_labels = torch.cat(all_labels, dim=0).numpy()
-        plot_roc_curve(all_labels, all_logits, args.save_path)
+        all_labels_np = torch.cat(all_labels, dim=0).numpy()
+        all_preds_np = torch.cat(all_preds, dim=0).numpy()
+        plot_roc_curve(all_labels_np, all_logits, args.save_path)
 
-    return loss_meter.avg(), acc_meter.avg(), acc_meter.confidence_interval()
+        # Precision, Recall, F1
+        precision, recall, f1, _ = precision_recall_fscore_support(
+            all_labels_np, all_preds_np, average='macro', zero_division=0)
+        print(f'[metrics] Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}')
+    else:
+        precision = recall = f1 = None
+
+    return loss_meter.avg(), acc_meter.avg(), acc_meter.confidence_interval(), precision, recall, f1
 
 
 def test_main(model, args):
@@ -82,8 +97,9 @@ def test_main(model, args):
     sampler = CategoriesSampler(test_set.label, args.test_episode, args.way, args.shot + args.query)
     test_loader = DataLoader(test_set, batch_sampler=sampler, num_workers=4, pin_memory=True)
 
-    _, test_acc, test_ci = evaluate("best", model, test_loader, args, set='test', plot_roc=True)
+    _, test_acc, test_ci, precision, recall, f1 = evaluate("best", model, test_loader, args, set='test', plot_roc=True)
     print(f'[final] epo:{"best":>3} | {by(test_acc)} +- {test_ci:.3f}')
+    print(f'[final] Precision: {precision:.4f} | Recall: {recall:.4f} | F1-score: {f1:.4f}')
 
     return test_acc, test_ci
 
